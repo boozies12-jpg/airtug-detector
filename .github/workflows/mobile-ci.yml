@@ -24,10 +24,10 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'gradle'
 
@@ -41,7 +41,16 @@ jobs:
         run: npm run build
 
       - name: Sync Capacitor Android
-        run: npx cap sync android
+        env:
+          CAPACITOR_TELEMETRY: '0'
+          CAPACITOR_TELEMETRY_DISABLED: '1'
+        run: |
+          set -o pipefail
+          npx cap telemetry off || true
+          echo "### Capacitor Sync Log" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          npx cap sync android 2>&1 | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Build Android APK
         run: |
