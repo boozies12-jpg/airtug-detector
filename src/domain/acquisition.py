@@ -240,6 +240,21 @@ class AcquisitionOrchestrator:
                 "local_name": "Office Surface Laptop",
                 "manufacturer_data": {"0006": "010f20227065d4b26d11d444d6cd782d0ed31f243757edb8791de6"},
                 "rssi_base": -72
+            },
+            # 6. Samsung SmartTag (0075 offline finding broadcast from samsong.pcapng)
+            {
+                "address": "D0:03:DF:BE:F0:8D",
+                "local_name": None,
+                "manufacturer_data": {"0075": "4204018060d003dfbef08dd203dfbef08c014cc6fcf1d4c3"},
+                "rssi_base": -48
+            },
+            # 7. Samsung SmartTag (FD5A active service broadcast from samsong.pcapng)
+            {
+                "address": "68:82:53:B7:3C:5D",
+                "local_name": None,
+                "service_data": {"fd5a": "12245a038612137f87e9bfbab70000009e8e759c"},
+                "service_uuids": ["fd5a"],
+                "rssi_base": -34
             }
         ]
 
@@ -261,6 +276,7 @@ class AcquisitionOrchestrator:
                     local_name=spec["local_name"],
                     manufacturer_data_raw=spec.get("manufacturer_data"),
                     service_data_raw=spec.get("service_data"),
+                    service_uuids_raw=spec.get("service_uuids"),
                     now_utc=now_utc,
                     mono_s=mono_s
                 )

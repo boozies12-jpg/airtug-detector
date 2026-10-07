@@ -1,15 +1,15 @@
 {
   "rule_id": "protocol.samsung_smarttag",
-  "revision": 1,
+  "revision": 2,
   "schema_version": "1.0.0",
   "enabled": true,
   "maturity": "validated",
   "kind": "protocol",
-  "description": "Samsung SmartThings Find / Galaxy SmartTag offline broadcast matching Company ID 0x0075 with header 0x4204 and 25-byte payload.",
+  "description": "Samsung SmartThings Find / Galaxy SmartTag offline broadcast matching Company ID 0x0075 with header 0x4204 and 24-byte payload.",
   "evidence_references": [
     {
       "source": "observed_excerpt",
-      "description": "Captured Samsung SmartTag broadcast payload from pcapng sample",
+      "description": "Captured Samsung SmartTag broadcast payload from pcapng sample (24-byte payload: 4204018060d003dfbef08dd203dfbef08c014cc6fcf1d4c3)",
       "url_or_ref": "C:/Users/User/Desktop/BLE-airtag/pcaps/5-10-11-00/samsong.pcapng"
     }
   ],
@@ -28,7 +28,7 @@
         "company_id": "0075"
       },
       {
-        "payload_length_in": [25],
+        "payload_length_in": [24, 25],
         "source": "manufacturer_data"
       },
       {

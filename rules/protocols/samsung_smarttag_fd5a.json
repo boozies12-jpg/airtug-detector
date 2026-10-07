@@ -1,0 +1,41 @@
+{
+  "rule_id": "protocol.samsung_smarttag_fd5a",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "validated",
+  "kind": "protocol",
+  "description": "Samsung SmartThings Find / Galaxy SmartTag broadcast matching 16-bit Service UUID 0xFD5A with 20-byte service payload.",
+  "evidence_references": [
+    {
+      "source": "observed_excerpt",
+      "description": "Captured Samsung SmartTag broadcast service data from pcapng sample samsong.pcapng (144 frames)",
+      "url_or_ref": "C:/Users/User/Desktop/BLE-airtag/pcaps/5-10-11-00/samsong.pcapng"
+    },
+    {
+      "source": "external_spec",
+      "description": "Bluetooth SIG 16-bit Service UUID assigned numbers (0xFD5A assigned to Samsung Electronics Co., Ltd.)",
+      "url_or_ref": "https://www.bluetooth.com/specifications/assigned-numbers/"
+    }
+  ],
+  "output": {
+    "protocol_family": "Samsung SmartThings Find",
+    "brand": "Samsung",
+    "model": "Galaxy SmartTag",
+    "brand_source": "inferred",
+    "status_text": "Samsung SmartTag / SmartThings Find active service broadcast (FD5A)",
+    "is_candidate": true,
+    "candidate_group": "protocol_match"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "service_uuid": "fd5a"
+      },
+      {
+        "payload_length_in": [20],
+        "source": "service_data"
+      }
+    ]
+  }
+}
