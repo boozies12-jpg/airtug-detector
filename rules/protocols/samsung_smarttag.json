@@ -1,15 +1,15 @@
 {
   "rule_id": "protocol.samsung_smarttag",
-  "revision": 2,
+  "revision": 3,
   "schema_version": "1.0.0",
-  "enabled": true,
-  "maturity": "validated",
+  "enabled": false,
+  "maturity": "experimental",
   "kind": "protocol",
-  "description": "Samsung SmartThings Find / Galaxy SmartTag offline broadcast matching Company ID 0x0075 with header 0x4204 and 24-byte payload.",
+  "description": "DISABLED: 0x0075 with header 0x4204 matches Samsung TVs (e.g. Samsung 7 Series) and Quick Connect ecosystem devices rather than dedicated SmartTags. Samsung SmartTag tracking is exclusively handled by protocol.samsung_smarttag_fd5a.",
   "evidence_references": [
     {
       "source": "observed_excerpt",
-      "description": "Captured Samsung SmartTag broadcast payload from pcapng sample (24-byte payload: 4204018060d003dfbef08dd203dfbef08c014cc6fcf1d4c3)",
+      "description": "Observed Samsung Quick Connect broadcast from TV [TV] Samsung 7 Series (55)",
       "url_or_ref": "C:/Users/User/Desktop/BLE-airtag/pcaps/5-10-11-00/samsong.pcapng"
     }
   ],

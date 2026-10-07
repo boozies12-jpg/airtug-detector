@@ -241,14 +241,14 @@ class AcquisitionOrchestrator:
                 "manufacturer_data": {"0006": "010f20227065d4b26d11d444d6cd782d0ed31f243757edb8791de6"},
                 "rssi_base": -72
             },
-            # 6. Samsung SmartTag (0075 offline finding broadcast from samsong.pcapng)
+            # 6. Background non-candidate device (Samsung TV Quick Connect 4204 broadcast)
             {
                 "address": "D0:03:DF:BE:F0:8D",
-                "local_name": None,
+                "local_name": "[TV] Samsung 7 Series (55)",
                 "manufacturer_data": {"0075": "4204018060d003dfbef08dd203dfbef08c014cc6fcf1d4c3"},
                 "rssi_base": -48
             },
-            # 7. Samsung SmartTag (FD5A active service broadcast from samsong.pcapng)
+            # 7. Samsung Galaxy SmartTag (FD5A active service broadcast from samsong.pcapng)
             {
                 "address": "68:82:53:B7:3C:5D",
                 "local_name": None,

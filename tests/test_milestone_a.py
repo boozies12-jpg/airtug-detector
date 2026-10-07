@@ -37,31 +37,27 @@ def test_rule_catalog_loading_and_hash():
     assert "protocol.apple_find_my" in catalog.rules
     assert "brand.xiaomi_tag" in catalog.rules
     assert "protocol.apple_find_my_fd44" in catalog.rules
-    assert "protocol.samsung_smarttag" in catalog.rules
     assert "protocol.samsung_smarttag_fd5a" in catalog.rules
+    assert "protocol.samsung_smarttag" not in catalog.rules  # Disabled to prevent TV false-positives
 
 def test_samsung_smarttag_classification():
     catalog = RuleCatalog(RULES_DIR)
     catalog.load()
     classifier = ClassifierEngine(catalog)
 
-    # 1. Exact 24-byte manufacturer data payload with 0x0075 and 4204 prefix from samsong.pcapng
-    record_24b = normalize_ble_data(
+    # 1. 24-byte payload with 0x0075 and 4204 prefix from Samsung TV (must NOT be candidate)
+    record_tv = normalize_ble_data(
         address="D0:03:DF:BE:F0:8D",
+        local_name="[TV] Samsung 7 Series (55)",
         rssi=-65,
         manufacturer_data_raw={
             "0075": "4204018060d003dfbef08dd203dfbef08c014cc6fcf1d4c3"
         }
     )
-    res_24b = classifier.classify(record_24b)
-    assert res_24b.is_candidate is True
-    assert res_24b.candidate_group.value == "protocol_match"
-    assert res_24b.protocol_family == "Samsung SmartThings Find"
-    assert res_24b.brand == "Samsung"
-    assert res_24b.model == "Galaxy SmartTag"
-    assert "protocol.samsung_smarttag" in res_24b.matched_rule_ids
+    res_tv = classifier.classify(record_tv)
+    assert res_tv.is_candidate is False
 
-    # 2. 20-byte Service UUID FD5A broadcast from samsong.pcapng
+    # 2. 20-byte Service UUID FD5A broadcast from real Samsung SmartTag
     record_fd5a = normalize_ble_data(
         address="68:82:53:B7:3C:5D",
         rssi=-26,
