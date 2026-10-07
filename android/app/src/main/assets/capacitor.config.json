@@ -1,0 +1,5 @@
+{
+	"appId": "io.sensorz.airtug",
+	"appName": "BLE Tracker Search",
+	"webDir": "dist"
+}
