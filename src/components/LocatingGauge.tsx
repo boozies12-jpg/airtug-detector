@@ -116,7 +116,7 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
         </div>
 
         {/* 20-Second Stationary Summary & Directional Trend */}
-        <div className="flex flex-wrap items-center gap-6 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 bg-slate-50 p-3.5 sm:px-4 sm:py-3 rounded-xl border border-slate-100 w-full md:w-auto">
           <div>
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               20s Window Summary
@@ -129,7 +129,7 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
             </div>
           </div>
 
-          <div className="border-l border-slate-200 pl-4">
+          <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4 w-full sm:w-auto">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
               Directional Trend (20s)
             </div>
@@ -137,13 +137,13 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
               {signal.trend_20s === "Stronger" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                   <ArrowUp size={14} className="stroke-[3]" />
-                  <span>+{signal.trend_diff_db} dB (User is closing in)</span>
+                  <span>+{signal.trend_diff_db} dB (Closing in)</span>
                 </span>
               )}
               {signal.trend_20s === "Weaker" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
                   <ArrowDown size={14} className="stroke-[3]" />
-                  <span>{signal.trend_diff_db} dB (User is moving away)</span>
+                  <span>{signal.trend_diff_db} dB (Moving away)</span>
                 </span>
               )}
               {signal.trend_20s === "Stable" && (

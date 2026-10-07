@@ -30,16 +30,16 @@ export const CandidateList: React.FC<CandidateListProps> = ({
       <div
         key={item.address}
         onClick={() => onSelectCandidate(item.address)}
-        className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+        className={`p-3.5 sm:p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
           isSelected
             ? "border-blue-500 bg-blue-50/60 shadow-sm"
             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
         }`}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button
             onClick={(e) => onTogglePin(item.address, e)}
-            className={`p-1.5 rounded-lg transition-colors ${
+            className={`p-1.5 rounded-lg transition-colors shrink-0 mt-0.5 ${
               item.is_pinned
                 ? "text-blue-600 bg-blue-100"
                 : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
@@ -48,24 +48,24 @@ export const CandidateList: React.FC<CandidateListProps> = ({
             <Pin size={18} />
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-800 text-sm">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="font-bold text-slate-800 text-sm truncate">
                 {item.classification.brand || item.classification.protocol_family || "Unknown Network"}
               </span>
               {item.classification.model && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
                   {item.classification.model}
                 </span>
               )}
               {item.is_found && (
-                <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 shrink-0">
                   <CheckCircle2 size={12} /> Found
                 </span>
               )}
             </div>
 
-            <div className="text-xs text-slate-500 font-mono mt-0.5">
+            <div className="text-xs text-slate-500 font-mono mt-0.5 truncate">
               {item.address}
               {item.local_name && (
                 <span className="ml-2 font-sans font-medium text-slate-600">
@@ -74,18 +74,18 @@ export const CandidateList: React.FC<CandidateListProps> = ({
               )}
             </div>
 
-            <div className="text-xs text-slate-400 mt-1 max-w-md truncate">
+            <div className="text-xs text-slate-400 mt-1 truncate">
               {item.classification.status_text}
             </div>
           </div>
         </div>
 
-        <div className="text-right flex flex-col items-end">
-          <span className="text-lg font-black text-slate-700">
+        <div className="text-right flex flex-col items-end shrink-0 pl-1">
+          <span className="text-lg font-black text-slate-700 whitespace-nowrap">
             {rssi !== null ? `${rssi}` : "--"}{" "}
             <span className="text-xs font-semibold text-slate-400">dBm</span>
           </span>
-          <span className="text-[11px] text-slate-400 font-medium">
+          <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
             {item.signal.current_age_s}s ago
           </span>
         </div>

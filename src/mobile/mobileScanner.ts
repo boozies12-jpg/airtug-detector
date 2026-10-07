@@ -3,6 +3,30 @@ import { Capacitor } from '@capacitor/core';
 import { MobileClassifier, MobileSignalProcessor, NormalizedRecord } from './mobileEngine';
 import { BleDeviceItem, AppStatus } from '../types';
 
+export function parseAppleTlvRecords(payloadHex: string): Array<{ record_type: number; length: number; body_hex: string }> {
+  const records: Array<{ record_type: number; length: number; body_hex: string }> = [];
+  if (!payloadHex || payloadHex.length < 4) return records;
+
+  let idx = 0;
+  const hexLen = payloadHex.length;
+  while (idx + 4 <= hexLen) {
+    const recType = parseInt(payloadHex.substring(idx, idx + 2), 16);
+    const recLen = parseInt(payloadHex.substring(idx + 2, idx + 4), 16);
+    const bodyStart = idx + 4;
+    const bodyEnd = bodyStart + recLen * 2;
+    if (bodyEnd > hexLen) {
+      break;
+    }
+    records.push({
+      record_type: recType,
+      length: recLen,
+      body_hex: payloadHex.substring(bodyStart, bodyEnd).toLowerCase()
+    });
+    idx = bodyEnd;
+  }
+  return records;
+}
+
 export class MobileBleManager {
   private classifier = new MobileClassifier();
   private signalProcessor = new MobileSignalProcessor();
@@ -162,6 +186,9 @@ export class MobileBleManager {
     const localName = res.localName || res.device.name || null;
     const rssi = res.rssi ?? -70;
 
+    const applePayload = mfgData["004c"];
+    const parsedApple = applePayload ? parseAppleTlvRecords(applePayload) : [];
+
     const record: NormalizedRecord = {
       address,
       rssi,
@@ -169,7 +196,7 @@ export class MobileBleManager {
       manufacturer_data: mfgData,
       service_data: svcData,
       service_uuids: uuids,
-      parsed_apple_records: [],
+      parsed_apple_records: parsedApple,
       monotonic_s: monoS
     };
 
@@ -235,6 +262,18 @@ export class MobileBleManager {
         rssi_base: -68
       },
       {
+        address: "4A:3B:2C:1D:0E:FF",
+        local_name: null,
+        manufacturer_data: { "004c": "1219000102030405060708090a0b0c0d0e0f10111213141516171819" },
+        rssi_base: -42
+      },
+      {
+        address: "7B:8A:9C:0D:1E:2F",
+        local_name: "iPhone (AirPods Proximity)",
+        manufacturer_data: { "004c": "07190912561000000150cf02a018fc4f6d8d3da635d3e7177b3f4a" },
+        rssi_base: -58
+      },
+      {
         address: "AA:BB:CC:DD:EE:01",
         local_name: "Office Surface Laptop",
         manufacturer_data: { "0006": "010f20227065d4b26d11d444d6cd782d0ed31f243757edb8791de6" },
@@ -250,6 +289,9 @@ export class MobileBleManager {
         const fluctuation = ((tIdx * 7 + spec.address.charCodeAt(0)) % 9) - 4;
         const curRssi = spec.rssi_base + fluctuation;
 
+        const applePayload = spec.manufacturer_data?.["004c"];
+        const parsedApple = applePayload ? parseAppleTlvRecords(applePayload) : [];
+
         const record: NormalizedRecord = {
           address: spec.address,
           rssi: curRssi,
@@ -257,7 +299,7 @@ export class MobileBleManager {
           manufacturer_data: spec.manufacturer_data || {},
           service_data: spec.service_data || {},
           service_uuids: spec.service_uuids || [],
-          parsed_apple_records: [],
+          parsed_apple_records: parsedApple,
           monotonic_s: monoS
         };
 

@@ -23,7 +23,7 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState<AppStatus | null>(isNative ? mobileBleManager.getStatus() : null);
   const [candidates, setCandidates] = useState<BleDeviceItem[]>([]);
   const [otherDevices, setOtherDevices] = useState<BleDeviceItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'candidates' | 'others'>('candidates');
+  const [activeTab, setActiveTab] = useState<'candidates' | 'others' | 'details'>('candidates');
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [sessionName, setSessionName] = useState('Search Area 1');
   const [scanElapsedS, setScanElapsedS] = useState(0);
@@ -223,64 +223,66 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Navigation Bar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
-            <Radio size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-black text-slate-800 text-lg tracking-tight">
-                BLE Tracker Search
-              </h1>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                v2.0
-              </span>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                Security Pilot
-              </span>
+      <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 sticky top-0 z-20 shadow-xs">
+        <div className="flex items-center justify-between w-full md:w-auto gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0">
+              <Radio size={20} className="sm:w-[22px] sm:h-[22px]" />
             </div>
-            <div className="text-xs text-slate-400 font-medium">
-              Rules: v{status?.rule_catalog_version} ({status?.rule_count} active) • Hash:{" "}
-              {status?.rule_catalog_hash || "..."}
+            <div>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="font-black text-slate-800 text-base sm:text-lg tracking-tight">
+                  BLE Tracker Search
+                </h1>
+                <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  v2.0
+                </span>
+                <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                  Security Pilot
+                </span>
+              </div>
+              <div className="text-xs text-slate-400 font-medium hidden sm:block">
+                Rules: v{status?.rule_catalog_version} ({status?.rule_count} active) • Hash:{" "}
+                {status?.rule_catalog_hash || "..."}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Scan Controls */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
           {!status?.is_scanning ? (
             <>
               <button
                 onClick={() => handleStartScan(false)}
-                className="flex-1 md:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 shadow-sm transition-all"
+                className="flex-1 md:flex-initial px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-all"
               >
-                <Play size={16} />
+                <Play size={15} />
                 <span>Start BLE Scan</span>
               </button>
               <button
                 onClick={() => handleStartScan(true)}
-                className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl font-bold text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center justify-center gap-2 transition-all"
+                className="flex-1 md:flex-initial px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center justify-center gap-1.5 sm:gap-2 transition-all"
               >
-                <Sparkles size={16} />
+                <Sparkles size={15} />
                 <span>Run Demo Feed</span>
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-200 text-xs font-semibold">
-                <Clock size={16} className="text-emerald-600 animate-spin" />
-                <span>
+            <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 w-full md:w-auto">
+              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 px-2.5 sm:px-3 py-1.5 rounded-xl border border-emerald-200 text-xs font-semibold truncate flex-1 md:flex-initial">
+                <Clock size={15} className="text-emerald-600 animate-spin shrink-0" />
+                <span className="truncate">
                   {scanElapsedS < 120
                     ? `Initial Observation: ${120 - scanElapsedS}s`
-                    : "Observation complete — scanning continues"}
+                    : "Observation complete"}
                 </span>
               </div>
               <button
                 onClick={handleStopScan}
-                className="px-5 py-2.5 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-2 shadow-sm transition-all"
+                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all shrink-0"
               >
-                <Square size={16} />
+                <Square size={15} />
                 <span>Stop Scan</span>
               </button>
             </div>
@@ -289,7 +291,7 @@ export const App: React.FC = () => {
           {status?.current_session_id && (
             <button
               onClick={handleExportCsv}
-              className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+              className="p-2 sm:p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
               title="Export Session CSV"
             >
               <FileDown size={18} />
@@ -316,10 +318,10 @@ export const App: React.FC = () => {
           {/* Left Column: Device Tabs and Lists */}
           <div className="lg:col-span-7 flex flex-col gap-4">
             {/* Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('candidates')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors ${
+                className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 sm:gap-2 transition-colors shrink-0 ${
                   activeTab === 'candidates'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
@@ -331,7 +333,7 @@ export const App: React.FC = () => {
 
               <button
                 onClick={() => setActiveTab('others')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors ${
+                className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 sm:gap-2 transition-colors shrink-0 ${
                   activeTab === 'others'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
@@ -340,6 +342,21 @@ export const App: React.FC = () => {
                 <Layers size={16} />
                 <span>Other Devices ({otherDevices.length})</span>
               </button>
+
+              {/* Mobile-only Target Details Tab */}
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`lg:hidden px-3 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 sm:gap-2 transition-colors shrink-0 ${
+                  activeTab === 'details'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : selectedDevice
+                    ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                    : 'text-slate-400 hover:bg-slate-100'
+                }`}
+              >
+                <Radio size={16} className={selectedDevice ? "animate-pulse" : ""} />
+                <span>Target Details</span>
+              </button>
             </div>
 
             {/* List Body */}
@@ -347,10 +364,12 @@ export const App: React.FC = () => {
               <CandidateList
                 candidates={candidates}
                 selectedAddress={status?.selected_target_address || null}
-                onSelectCandidate={handleSelectTarget}
+                onSelectCandidate={(addr) => {
+                  handleSelectTarget(addr);
+                }}
                 onTogglePin={handleTogglePin}
               />
-            ) : (
+            ) : activeTab === 'others' ? (
               /* STEP B: Upgraded Other Devices Tab with Real-Time Tracking, Liveness, and Pinning */
               <div className="flex flex-col gap-2.5">
                 {sortedOtherDevices.length === 0 ? (
@@ -375,18 +394,18 @@ export const App: React.FC = () => {
                       <div
                         key={item.address}
                         onClick={() => handleSelectTarget(item.address)}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        className={`p-3.5 sm:p-4 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                           isSelected
                             ? "border-blue-500 bg-blue-50/70 ring-2 ring-blue-400 shadow-sm"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
                         }`}
                       >
                         {/* Device Info & Status Pulse */}
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
                           {/* Pin Toggle Button */}
                           <button
                             onClick={(e) => handleTogglePin(item.address, e)}
-                            className={`p-1.5 rounded-lg transition-colors mt-0.5 ${
+                            className={`p-1.5 rounded-lg transition-colors mt-0.5 shrink-0 ${
                               item.is_pinned
                                 ? "text-blue-600 bg-blue-100"
                                 : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
@@ -396,23 +415,23 @@ export const App: React.FC = () => {
                             <Pin size={18} />
                           </button>
 
-                          <div>
-                            <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                               {/* Visual Pulse / Status Indicator */}
                               <span
-                                className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`}
+                                className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`}
                                 title={freshness}
                               />
-                              <span className="font-bold text-slate-800 text-sm">
+                              <span className="font-bold text-slate-800 text-sm truncate">
                                 {item.local_name || "Unnamed Device"}
                               </span>
                               {item.is_pinned && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
                                   PINNED
                                 </span>
                               )}
                               {isSelected && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-600 text-white">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-600 text-white shrink-0">
                                   TRACKING
                                 </span>
                               )}
@@ -421,7 +440,7 @@ export const App: React.FC = () => {
                             <div className="text-xs text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-x-2">
                               <span>{item.address}</span>
                               <span className="text-slate-300">•</span>
-                              <span className="font-sans text-slate-400">{item.classification.status_text}</span>
+                              <span className="font-sans text-slate-400 truncate">{item.classification.status_text}</span>
                             </div>
 
                             {/* Liveness & Packet Activity */}
@@ -444,13 +463,13 @@ export const App: React.FC = () => {
                         </div>
 
                         {/* RSSI & Dedicated Track Action Button */}
-                        <div className="flex items-center justify-between sm:justify-end gap-4 pl-9 sm:pl-0">
-                          <div className="text-right">
-                            <div className="text-lg font-black text-slate-800 tracking-tight">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                          <div className="text-left sm:text-right">
+                            <div className="text-lg font-black text-slate-800 tracking-tight whitespace-nowrap">
                               {rssi !== null ? `${rssi}` : "--"}{" "}
                               <span className="text-xs font-semibold text-slate-400">dBm</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 font-medium">
+                            <div className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
                               {freshness}
                             </div>
                           </div>
@@ -460,7 +479,7 @@ export const App: React.FC = () => {
                               e.stopPropagation();
                               handleSelectTarget(item.address);
                             }}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ${
                               isSelected
                                 ? "bg-blue-600 text-white shadow-xs"
                                 : "bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200"
@@ -475,11 +494,17 @@ export const App: React.FC = () => {
                   })
                 )}
               </div>
+            ) : (
+              <CandidateDetail
+                device={selectedDevice}
+                onMarkFound={handleMarkFound}
+                onRecordCheckpoint={handleRecordCheckpoint}
+              />
             )}
           </div>
 
-          {/* Right Column: Candidate Detail & Evidence */}
-          <div className="lg:col-span-5">
+          {/* Right Column: Candidate Detail & Evidence (Desktop only) */}
+          <div className="lg:col-span-5 hidden lg:block">
             <CandidateDetail
               device={selectedDevice}
               onMarkFound={handleMarkFound}

@@ -244,6 +244,104 @@ export class MobileClassifier {
         if (!matched) return false;
       }
     }
+
+    if (cond.apple_record_type !== undefined) {
+      const reqType = cond.apple_record_type;
+      const reqLen = cond.apple_body_length;
+      let matched = false;
+      for (const appleRec of (rec.parsed_apple_records || [])) {
+        if (appleRec.record_type === reqType) {
+          if (reqLen === undefined || appleRec.length === reqLen) {
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) return false;
+    }
+
+    if (cond.byte_matches) {
+      for (const bm of cond.byte_matches) {
+        const src = bm.source;
+        const offset = bm.offset;
+        const exp = bm.expected_hex.toLowerCase();
+        let matchedBm = false;
+
+        const checkPayload = (hex: string) => {
+          if (offset * 2 + 2 <= hex.length) {
+            return hex.substring(offset * 2, offset * 2 + 2).toLowerCase() === exp;
+          }
+          return false;
+        };
+
+        if (src === "service_data") {
+          for (const hex of Object.values(rec.service_data)) {
+            if (checkPayload(hex)) {
+              matchedBm = true;
+              break;
+            }
+          }
+        } else if (src === "manufacturer_data") {
+          for (const hex of Object.values(rec.manufacturer_data)) {
+            if (checkPayload(hex)) {
+              matchedBm = true;
+              break;
+            }
+          }
+        } else if (src === "parsed_apple_body") {
+          for (const appleRec of (rec.parsed_apple_records || [])) {
+            if (checkPayload(appleRec.body_hex)) {
+              matchedBm = true;
+              break;
+            }
+          }
+        }
+        if (!matchedBm) return false;
+      }
+    }
+
+    if (cond.masked_flags) {
+      for (const mf of cond.masked_flags) {
+        const src = mf.source;
+        const offset = mf.offset;
+        const mask = parseInt(mf.mask_hex, 16);
+        const exp = parseInt(mf.expected_hex, 16);
+        let matchedMf = false;
+
+        const checkMask = (hex: string) => {
+          if (offset * 2 + 2 <= hex.length) {
+            const b = parseInt(hex.substring(offset * 2, offset * 2 + 2), 16);
+            return (b & mask) === exp;
+          }
+          return false;
+        };
+
+        if (src === "service_data") {
+          for (const hex of Object.values(rec.service_data)) {
+            if (checkMask(hex)) {
+              matchedMf = true;
+              break;
+            }
+          }
+        } else if (src === "manufacturer_data") {
+          for (const hex of Object.values(rec.manufacturer_data)) {
+            if (checkMask(hex)) {
+              matchedMf = true;
+              break;
+            }
+          }
+        } else if (src === "parsed_apple_body") {
+          for (const appleRec of (rec.parsed_apple_records || [])) {
+            if (checkMask(appleRec.body_hex)) {
+              matchedMf = true;
+              break;
+            }
+          }
+        }
+        if (!matchedMf) return false;
+      }
+    }
+
     if (cond.hex_prefix) {
       const prefix = cond.hex_prefix.prefix.toLowerCase();
       const src = cond.hex_prefix.source || "manufacturer_data";
@@ -258,6 +356,13 @@ export class MobileClassifier {
       } else if (src === "service_data") {
         for (const hex of Object.values(rec.service_data)) {
           if (hex.toLowerCase().startsWith(prefix)) {
+            matched = true;
+            break;
+          }
+        }
+      } else if (src === "parsed_apple_body") {
+        for (const appleRec of (rec.parsed_apple_records || [])) {
+          if (appleRec.body_hex.toLowerCase().startsWith(prefix)) {
             matched = true;
             break;
           }
@@ -319,6 +424,15 @@ export class MobileClassifier {
           if (rule.output.model) bestResult.model = rule.output.model;
           if (rule.output.brand_source) bestResult.brand_source = rule.output.brand_source;
           bestResult.matched_rule_ids.push(id);
+        }
+      }
+    }
+
+    if (matchedRuleIds.size === 0) {
+      for (const appleRec of (rec.parsed_apple_records || [])) {
+        if (appleRec.record_type === 7) {
+          bestResult.status_text = "Apple proximity pairing (non-tracker)";
+          return bestResult;
         }
       }
     }
