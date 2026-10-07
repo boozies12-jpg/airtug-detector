@@ -4,6 +4,7 @@ import { CandidateList } from './components/CandidateList';
 import { CandidateDetail } from './components/CandidateDetail';
 import { BleDeviceItem, AppStatus } from './types';
 import { audioFeedback } from './utils/audio';
+import { mobileBleManager } from './mobile/mobileScanner';
 import {
   Play,
   Square,
@@ -13,11 +14,13 @@ import {
   Sparkles,
   Clock,
   ShieldCheck,
-  Pin
+  Pin,
+  Smartphone
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [status, setStatus] = useState<AppStatus | null>(null);
+  const isNative = mobileBleManager.isNative();
+  const [status, setStatus] = useState<AppStatus | null>(isNative ? mobileBleManager.getStatus() : null);
   const [candidates, setCandidates] = useState<BleDeviceItem[]>([]);
   const [otherDevices, setOtherDevices] = useState<BleDeviceItem[]>([]);
   const [activeTab, setActiveTab] = useState<'candidates' | 'others'>('candidates');
@@ -27,8 +30,9 @@ export const App: React.FC = () => {
 
   const socketRef = useRef<WebSocket | null>(null);
 
-  // Poll API status & candidate lists periodically
+  // Poll API status & candidate lists periodically (for desktop/web)
   const refreshData = async () => {
+    if (isNative) return;
     try {
       const [resStatus, resCand, resOthers] = await Promise.all([
         fetch('/api/status').then((r) => r.json()),
@@ -39,61 +43,82 @@ export const App: React.FC = () => {
       setCandidates(resCand);
       setOtherDevices(resOthers);
     } catch {
-      // offline or loading
+      // offline or mobile
     }
   };
 
   useEffect(() => {
+    if (isNative) {
+      mobileBleManager.onUpdate((cands, others, stat) => {
+        setCandidates(cands);
+        setOtherDevices(others);
+        setStatus(stat);
+        if (stat.selected_target_address) {
+          const sel =
+            cands.find((c) => c.address === stat.selected_target_address) ||
+            others.find((o) => o.address === stat.selected_target_address);
+          if (sel && sel.signal.current_rssi !== null) {
+            audioFeedback.playCueForRssi(sel.signal.current_rssi);
+          }
+        }
+      });
+      setStatus(mobileBleManager.getStatus());
+      return;
+    }
+
     refreshData();
     const interval = setInterval(refreshData, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isNative]);
 
-  // WebSocket for real-time live events
+  // WebSocket for real-time live events (desktop/web)
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const ws = new WebSocket(wsUrl);
-    socketRef.current = ws;
+    if (isNative) return;
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event === 'device_updated') {
-          const dev = msg.data;
-          // Trigger throttled audio feedback if device matches selected target
-          if (dev.address === status?.selected_target_address) {
-            audioFeedback.playCueForRssi(dev.signal.current_rssi);
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'device_updated') {
+            const dev = msg.data;
+            // Trigger throttled audio feedback if device matches selected target
+            if (dev.address === status?.selected_target_address) {
+              audioFeedback.playCueForRssi(dev.signal.current_rssi);
+            }
+            if (dev.classification.is_candidate) {
+              setCandidates((prev) => {
+                const idx = prev.findIndex((p) => p.address === dev.address);
+                if (idx >= 0) {
+                  const updated = [...prev];
+                  updated[idx] = dev;
+                  return updated;
+                }
+                return [...prev, dev];
+              });
+            } else {
+              setOtherDevices((prev) => {
+                const idx = prev.findIndex((p) => p.address === dev.address);
+                if (idx >= 0) {
+                  const updated = [...prev];
+                  updated[idx] = dev;
+                  return updated;
+                }
+                return [...prev, dev];
+              });
+            }
           }
-          if (dev.classification.is_candidate) {
-            setCandidates((prev) => {
-              const idx = prev.findIndex((p) => p.address === dev.address);
-              if (idx >= 0) {
-                const updated = [...prev];
-                updated[idx] = dev;
-                return updated;
-              }
-              return [...prev, dev];
-            });
-          } else {
-            setOtherDevices((prev) => {
-              const idx = prev.findIndex((p) => p.address === dev.address);
-              if (idx >= 0) {
-                const updated = [...prev];
-                updated[idx] = dev;
-                return updated;
-              }
-              return [...prev, dev];
-            });
-          }
-        }
-      } catch {}
-    };
+        } catch {}
+      };
 
-    return () => {
-      ws.close();
-    };
-  }, [status?.selected_target_address]);
+      return () => {
+        ws.close();
+      };
+    } catch {}
+  }, [isNative, status?.selected_target_address]);
 
   // Elapsed timer when scanning
   useEffect(() => {
@@ -107,6 +132,14 @@ export const App: React.FC = () => {
   }, [status?.is_scanning]);
 
   const handleStartScan = async (demo: boolean = false) => {
+    if (isNative) {
+      try {
+        await mobileBleManager.startScan(demo);
+      } catch (err: any) {
+        alert("Bluetooth scan error: " + (err?.message || err));
+      }
+      return;
+    }
     await fetch('/api/scan/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -116,11 +149,19 @@ export const App: React.FC = () => {
   };
 
   const handleStopScan = async () => {
+    if (isNative) {
+      await mobileBleManager.stopScan();
+      return;
+    }
     await fetch('/api/scan/stop', { method: 'POST' });
     refreshData();
   };
 
   const handleSelectTarget = async (address: string) => {
+    if (isNative) {
+      mobileBleManager.selectTarget(address);
+      return;
+    }
     await fetch('/api/target/select', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -131,6 +172,10 @@ export const App: React.FC = () => {
 
   const handleTogglePin = async (address: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isNative) {
+      mobileBleManager.togglePin(address);
+      return;
+    }
     await fetch('/api/target/pin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

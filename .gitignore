@@ -5,3 +5,14 @@ __pycache__
 .pytest_cache
 data/sessions/*
 !data/sessions/.gitkeep
+
+# Mobile Native Builds
+.gradle/
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/build/
+ios/App/DerivedData/
