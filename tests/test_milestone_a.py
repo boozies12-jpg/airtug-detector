@@ -31,12 +31,34 @@ def test_normalization_primitives():
 def test_rule_catalog_loading_and_hash():
     catalog = RuleCatalog(RULES_DIR)
     catalog.load()
-    assert len(catalog.rules) >= 4
+    assert len(catalog.rules) >= 5
     assert catalog.content_hash != ""
     assert "protocol.google_find_hub" in catalog.rules
     assert "protocol.apple_find_my" in catalog.rules
     assert "brand.xiaomi_tag" in catalog.rules
     assert "protocol.apple_find_my_fd44" in catalog.rules
+    assert "protocol.samsung_smarttag" in catalog.rules
+
+def test_samsung_smarttag_classification():
+    catalog = RuleCatalog(RULES_DIR)
+    catalog.load()
+    classifier = ClassifierEngine(catalog)
+
+    # 25-byte manufacturer data payload with 0x0075 and 4204 prefix
+    record = normalize_ble_data(
+        address="D0:03:DF:BE:F0:8D",
+        rssi=-65,
+        manufacturer_data_raw={
+            "0075": "4204018060d003dfbef08dd203dfbef08c014cc6fcf1d4c300"
+        }
+    )
+    res = classifier.classify(record)
+    assert res.is_candidate is True
+    assert res.candidate_group.value == "protocol_match"
+    assert res.protocol_family == "Samsung SmartThings Find"
+    assert res.brand == "Samsung"
+    assert res.model == "Galaxy SmartTag"
+    assert "protocol.samsung_smarttag" in res.matched_rule_ids
 
 def test_fixtures_classification():
     catalog = RuleCatalog(RULES_DIR)

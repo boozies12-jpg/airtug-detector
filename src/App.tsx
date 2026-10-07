@@ -7,13 +7,13 @@ import { audioFeedback } from './utils/audio';
 import {
   Play,
   Square,
-  Search,
   Radio,
   FileDown,
   Layers,
   Sparkles,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Pin
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -61,22 +61,31 @@ export const App: React.FC = () => {
         const msg = JSON.parse(event.data);
         if (msg.event === 'device_updated') {
           const dev = msg.data;
-          // Trigger throttled audio feedback if candidate matches selected target
+          // Trigger throttled audio feedback if device matches selected target
           if (dev.address === status?.selected_target_address) {
             audioFeedback.playCueForRssi(dev.signal.current_rssi);
           }
-          // Incremental update candidate list
-          setCandidates((prev) => {
-            const idx = prev.findIndex((p) => p.address === dev.address);
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = dev;
-              return updated;
-            } else if (dev.classification.is_candidate) {
+          if (dev.classification.is_candidate) {
+            setCandidates((prev) => {
+              const idx = prev.findIndex((p) => p.address === dev.address);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = dev;
+                return updated;
+              }
               return [...prev, dev];
-            }
-            return prev;
-          });
+            });
+          } else {
+            setOtherDevices((prev) => {
+              const idx = prev.findIndex((p) => p.address === dev.address);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = dev;
+                return updated;
+              }
+              return [...prev, dev];
+            });
+          }
         }
       } catch {}
     };
@@ -153,11 +162,18 @@ export const App: React.FC = () => {
     window.open(`/api/sessions/${status.current_session_id}/export/csv`, '_blank');
   };
 
-  // Find currently selected device
+  // Find currently selected device across candidates or other devices
   const selectedDevice =
     candidates.find((c) => c.address === status?.selected_target_address) ||
     otherDevices.find((o) => o.address === status?.selected_target_address) ||
     null;
+
+  // Sort other devices: pinned devices first, then descending by RSSI
+  const sortedOtherDevices = [...otherDevices].sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
+    return (b.signal.current_rssi ?? -999) - (a.signal.current_rssi ?? -999);
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -172,6 +188,9 @@ export const App: React.FC = () => {
               <h1 className="font-black text-slate-800 text-lg tracking-tight">
                 BLE Tracker Search
               </h1>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                v2.0
+              </span>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                 Security Pilot
               </span>
@@ -236,7 +255,7 @@ export const App: React.FC = () => {
 
       {/* Main Content Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
-        {/* Locating Gauge for selected candidate */}
+        {/* Locating Gauge for selected target (from Candidates or Other Devices) */}
         <LocatingGauge
           signal={selectedDevice?.signal || null}
           audioEnabled={audioEnabled}
@@ -287,35 +306,128 @@ export const App: React.FC = () => {
                 onTogglePin={handleTogglePin}
               />
             ) : (
-              <div className="flex flex-col gap-2">
-                {otherDevices.length === 0 ? (
+              /* STEP B: Upgraded Other Devices Tab with Real-Time Tracking, Liveness, and Pinning */
+              <div className="flex flex-col gap-2.5">
+                {sortedOtherDevices.length === 0 ? (
                   <div className="p-8 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
                     No background devices observed.
                   </div>
                 ) : (
-                  otherDevices.map((item) => (
-                    <div
-                      key={item.address}
-                      onClick={() => handleSelectTarget(item.address)}
-                      className={`p-3.5 rounded-xl border bg-white flex items-center justify-between cursor-pointer transition-colors ${
-                        item.address === status?.selected_target_address
-                          ? 'border-blue-500 bg-blue-50/50'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div>
-                        <div className="text-xs font-bold text-slate-700">
-                          {item.local_name || 'Unnamed Device'}
+                  sortedOtherDevices.map((item) => {
+                    const isSelected = item.address === status?.selected_target_address;
+                    const rssi = item.signal.current_rssi;
+                    const freshness = item.signal.freshness;
+                    const dotColor =
+                      freshness === "Recent observation"
+                        ? "bg-emerald-500 animate-pulse"
+                        : freshness === "Waiting for next observation"
+                        ? "bg-amber-500"
+                        : freshness === "No recent signal"
+                        ? "bg-orange-500"
+                        : "bg-slate-300";
+
+                    return (
+                      <div
+                        key={item.address}
+                        onClick={() => handleSelectTarget(item.address)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50/70 ring-2 ring-blue-400 shadow-sm"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
+                        }`}
+                      >
+                        {/* Device Info & Status Pulse */}
+                        <div className="flex items-start gap-3">
+                          {/* Pin Toggle Button */}
+                          <button
+                            onClick={(e) => handleTogglePin(item.address, e)}
+                            className={`p-1.5 rounded-lg transition-colors mt-0.5 ${
+                              item.is_pinned
+                                ? "text-blue-600 bg-blue-100"
+                                : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                            }`}
+                            title={item.is_pinned ? "Unpin device" : "Pin to top"}
+                          >
+                            <Pin size={18} />
+                          </button>
+
+                          <div>
+                            <div className="flex items-center gap-2">
+                              {/* Visual Pulse / Status Indicator */}
+                              <span
+                                className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`}
+                                title={freshness}
+                              />
+                              <span className="font-bold text-slate-800 text-sm">
+                                {item.local_name || "Unnamed Device"}
+                              </span>
+                              {item.is_pinned && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                                  PINNED
+                                </span>
+                              )}
+                              {isSelected && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-600 text-white">
+                                  TRACKING
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-x-2">
+                              <span>{item.address}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-sans text-slate-400">{item.classification.status_text}</span>
+                            </div>
+
+                            {/* Liveness & Packet Activity */}
+                            <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-3">
+                              <span>
+                                Activity:{" "}
+                                <strong className="text-slate-600 font-semibold">
+                                  {item.signal.summary_20s_count} pkts / 20s
+                                </strong>
+                              </span>
+                              <span className="text-slate-300">•</span>
+                              <span>
+                                Last seen:{" "}
+                                <strong className="text-slate-600 font-semibold">
+                                  {item.signal.current_age_s}s ago
+                                </strong>
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[11px] font-mono text-slate-400">
-                          {item.address} • {item.classification.status_text}
+
+                        {/* RSSI & Dedicated Track Action Button */}
+                        <div className="flex items-center justify-between sm:justify-end gap-4 pl-9 sm:pl-0">
+                          <div className="text-right">
+                            <div className="text-lg font-black text-slate-800 tracking-tight">
+                              {rssi !== null ? `${rssi}` : "--"}{" "}
+                              <span className="text-xs font-semibold text-slate-400">dBm</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-medium">
+                              {freshness}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectTarget(item.address);
+                            }}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200"
+                            }`}
+                          >
+                            <Radio size={14} className={isSelected ? "animate-pulse" : ""} />
+                            <span>{isSelected ? "Tracking" : "Track / עקוב"}</span>
+                          </button>
                         </div>
                       </div>
-                      <div className="text-xs font-black text-slate-600">
-                        {item.signal.current_rssi ?? '--'} dBm
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}

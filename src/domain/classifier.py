@@ -191,6 +191,29 @@ class ClassifierEngine:
                 if not matched_mf:
                     return False
 
+        if "hex_prefix" in cond:
+            hp = cond["hex_prefix"]
+            prefix = hp["prefix"].lower()
+            src = hp.get("source", "manufacturer_data")
+            matched_hp = False
+            if src == "manufacturer_data":
+                for payload_hex in record.manufacturer_data.values():
+                    if payload_hex.lower().startswith(prefix):
+                        matched_hp = True
+                        break
+            elif src == "service_data":
+                for payload_hex in record.service_data.values():
+                    if payload_hex.lower().startswith(prefix):
+                        matched_hp = True
+                        break
+            elif src == "parsed_apple_body":
+                for rec in record.parsed_apple_records:
+                    if rec.body_hex.lower().startswith(prefix):
+                        matched_hp = True
+                        break
+            if not matched_hp:
+                return False
+
         if "exact_local_name" in cond:
             if not record.local_name:
                 return False
