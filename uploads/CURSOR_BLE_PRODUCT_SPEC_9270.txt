@@ -1,0 +1,103 @@
+WINDOWS BLE TRACKER SEARCH — CURSOR IMPLEMENTATION HANDOFF
+Revision 3 — 2026-10-06. All application UI and exports must be English, left-to-right.
+
+Revision 2 removes specimen-fingerprint classification from production, separates responsive signal feedback from long-window summaries, separates experimental candidates from format matches, and specifies incremental delivery and reproducible test evidence.
+
+Revision 3 adds a versioned, locally editable detection-rule catalog and a documented workflow for adding protocols, brands and experimental signatures without modifying acquisition or UI code. Include this foundation in milestone A, not as a future rewrite.
+
+1. TASK AND AUTHORITY
+
+Build a usable Windows pilot application for an operator searching for BLE tracking accessories among objects and across inspection areas. Reuse the project at C:\Users\User\Desktop\BLE-airtag where appropriate. Read its implementation before editing. This document supersedes older project instructions that describe a terminal-only scanner, owner-presence inference, or automatic tracker counts.
+
+The user now explicitly wants generic Google finding-network detection, optional brand identification when advertised, Apple Find My family detection where justified, and longer observation windows. Retain the existing focus on Apple/Find My while adding this bounded Google support. Do not add cellular, SDR, UWB ranging, cloud services, accounts, or telemetry.
+
+Do not start by rereading entire PCAPs. The observations, exact payloads, evidence boundaries, and required fixtures below are sufficient to start. The source paths are provenance. Only inspect a small targeted PCAP slice if a concrete contradiction cannot be resolved from this handoff; document why. Do not require Wireshark or PCAP ingestion for the installed product.
+
+This document specifies the product to implement; it does not claim that implementation, runtime validation, or field validation has already occurred. No project code was changed while preparing it.
+
+2. PRODUCT WORKFLOW
+
+Start Scan creates a locally saved session immediately, without a mandatory form. Start scanning only after the operator presses Start Scan. Use one continuous active BLE scanner; do not repeatedly stop/restart it to implement time windows. Do not filter acquisition to one UUID: manufacturer-data devices and delayed scan responses must also be received.
+
+Default initial observation period: 120 seconds. Display elapsed time and an initial-observation countdown. Display findings immediately. At 120 seconds the scanner CONTINUES until Stop Scan. Say "Initial observation complete — scanning continues", never "Area clear". Allow an optional 300-second initial period. These are workflow defaults, not guarantees of detection.
+
+The operator can name the session and current inspection position, select a candidate, pin several candidates, compare measurements, add notes, and mark a physical item found. The selected target does not change automatically. Continue acquiring all observations while locating one target.
+
+Main tabs: Candidates and Other Devices. Candidates shows structurally matched finding-network broadcasts and explicitly qualified possible tracker signatures. Do not fill it with every Apple, Google, Xiaomi, or Samsung device. Other Devices remains searchable and manually selectable for signal inspection.
+
+Within Candidates, show separate groups: "Protocol matches" and "Possible trackers". Keep both accessible by default, but never combine their counts or give them the same confidence badge. Possible includes the experimental FD44 rule and exact-name-plus-Fast-Pair evidence. A manually associated item is marked as operator-labeled, not promoted to a stronger classifier result.
+
+Use stable rows, explicit sorting, large touch controls, light background and blue primary controls. Wide layout: list and selected-target details. Narrow layout: full target view with easy return. Show network/family, optional advertised brand/model, signal freshness, and last-seen age. Avoid forcing technical evidence into the main locating view; keep an accessible Evidence section.
+
+3. THREE DISTINCT TYPES OF IDENTIFICATION
+
+Store these separately:
+  protocol_family: observed protocol format, independent of brand.
+  brand/model: advertised or operator-provided identity, with provenance.
+  physical_identity: unknown unless the operator associates a found item.
+
+Do not use a single label string as the classification engine's source of truth. Return structured evidence including rule ID/version, field values, observation timestamps, status (format match / possible / unknown), brand source, and limitations. These statuses are not calibrated probabilities.
+
+"Google Find Hub" denotes the network format, not a Google-manufactured device. "Apple Find My" does not by itself denote an Apple-manufactured AirTag. A format match is not cryptographic authentication or proof of a genuine product.
+
+Show exact advertised local names, safely as plain text. Extract a brand/model only from an explicit, documented name mapping; do not infer "Xiaomi Tag" from any name containing "xiaomi". A manufacturer-company identifier and a UUID assigned are separate evidence fields, not necessarily the product brand.
+
+Unknown brands are normal: use "Brand unknown". Never fill missing identity by MAC prefix, signal strength, adjacent observations, or a known test-device address.
+
+4. NORMALIZATION AND PARSING
+
+Bleak manufacturer_data values exclude the two-byte company ID. For company 0x004C, the payload described below begins at the Apple message type, not at 4C 00. Accept the project's normalized company-key form "004c" and normalize at the ingestion boundary.
+
+Bleak service_data maps UUIDs to payload bytes after the UUID. Do not count the two UUID bytes as part of the lengths below. Normalize 16-bit Bluetooth-base UUIDs safely; do not shorten arbitrary 128-bit UUIDs by slicing characters.
+
+Parse AD structures and Apple type/length records with bounds checking when raw records are supplied. Do not search arbitrary byte positions for a signature. A truncated record is not a valid match. Preserve an independently complete valid record when another record is malformed. If several valid rules conflict, retain and display the conflict; do not pick whichever set iteration returns first.
+
+Names may arrive in a later scan response. Correlate within the same active scan session and advertiser address, with timestamps; absence of a name in one callback must not erase an already observed name. Keep historical evidence separate from current observations. A device seen again may emit a different payload or protocol; preserve that history and reevaluate classification.
+
+Keep last_received_at separate from each evidence field's last_observed_at. Do not pretend a cached name or payload was independently reobserved if the backend cannot distinguish that. Record backend semantics and metadata availability.
+
+4A. EXTENSIBLE RULE CATALOG — REQUIRED IN THE INITIAL ARCHITECTURE
+
+The owner will investigate additional tags over time and may discover that a particular payload flag, byte pattern or service belongs to a tracker or a different brand. Make those refinements inexpensive and reviewable. Do not implement an ever-growing chain of device-specific if-statements inside the scanner or UI.
+
+Implement one classifier engine with a schema-validated JSON rule catalog. Use JSON for ordinary declarative rules; do not execute expressions or arbitrary code from catalog files. Suggested project layout (adapt to package layout once and document the actual paths):
+  rules/schema.json — versioned rule format
+  rules/protocols/*.json — protocol/family detection rules
+  rules/brands/*.json — optional brand/model refinements
+  rules/experimental/*.json — explicitly provisional findings
+  tests/fixtures/classification/ — labeled positive/negative/synthetic observations
+  docs/ADDING_TRACKER_RULES.md — short maintenance guide with one complete worked example
+
+Each rule must have a unique stable rule_id, integer revision, schema_version, enabled flag, maturity (experimental / validated), rule kind (protocol / brand refinement), evidence references, a description and output fields. Evidence references must distinguish observed excerpts, operator labels, external specifications and synthetic tests. Maturity does not authenticate a physical device and does not override the evidence limits in this specification.
+
+Supported bounded matching primitives must cover:
+  - company ID and/or exact normalized service UUID;
+  - complete parsed Apple record type/body length, where applicable;
+  - allowed normalized payload lengths;
+  - byte comparison at an explicit zero-based offset;
+  - masked flag comparison: (byte & mask) == expected;
+  - exact hex prefix or explicit fixed-offset byte sequence;
+  - exact local-name mapping, including whether comparison is case-sensitive;
+  - dependency on an already matched protocol rule;
+  - explicit all-of / any-of combinations with bounded nesting and clear semantics.
+
+Define offsets against a named source (normalized service_data payload, manufacturer_data payload excluding company ID, or a parsed record body). Never leave the byte origin implicit. Missing fields, unavailable bytes or too-short payloads mean no match, never zero-filled bytes. Validate hex syntax, offsets, masks, expected bits, lengths, rule dependencies and duplicate IDs before activating a catalog. Do not require observed RSSI, MAC, EID, or whole specimen fingerprints for a production identity rule.
+
+A flag is not meaningful globally: require its protocol/service/company context and a valid payload shape. A future experimental signature may supply a candidate-family hypothesis if it is sufficiently scoped, but a new brand hypothesis must not relabel every packet with that flag. Express a brand refinement as a dependency on a protocol plus additional discriminating evidence. UUID ownership by itself is not product brand evidence. If the evidence only establishes a tracking format, retain Brand unknown.
+
+Evaluate all applicable rules, then resolve their outputs deterministically. A compatible model/brand refinement enriches the generic protocol match instead of creating another device row. An experimental rule never silently overrides a validated identity. Incompatible protocol or brand matches produce a visible conflict with the matched rule IDs; file order and arbitrary numeric priority must not hide it. Define dependency evaluation and reject cycles. Known legitimate multi-protocol evidence may be recorded as multiple observed families, without asserting they are different physical devices or that names transfer across addresses.
+
+Most additions should consist of one rule file plus fixtures and a support-matrix entry. For genuinely new binary formats that cannot be expressed with these primitives, allow a small reviewed Python parser behind the existing normalized classifier interface; do not redesign the scanner or UI, or load external executable plugins dynamically. Keep this fallback separate from the ordinary edit-a-rule workflow.
+
+Load a validated catalog snapshot at application start; pin it for the entire session. Version rule content using a catalog version plus a content hash, and persist that identifier and matched rule revisions with each session. Archive the snapshot with session data so offline reproduction does not rely on whatever files happen to be installed later. Do not reload rules halfway through scanning in v1. A rule change takes effect after restart/new session; show the active catalog version in About/Evidence.
+
+Keep bundled rules and local extensions separate. In the packaged application, use a documented user-writable local-rules folder, with Open Rules Folder and a read-only validation/status display. Do not require editing installation files or rebuilding the executable for a supported declarative rule. Do not implement an elaborate visual rule editor or online rule-update service in v1. Reject an invalid update atomically and keep the last valid snapshot; show a clear error and its file/rule location. If no valid catalog exists, expose classification unavailable while retaining raw acquisition. Never claim the invalid update became active or silently enable only part of a broken update.
+
+Maintenance workflow to document for the owner and future Cursor sessions:
+  1. Specify the suspected family/brand, exact payload source/offset/flag, and the evidence supporting the claim.
+  2. Add the narrowest useful rule as experimental; include at least one observed positive when available and realistic negatives sharing its UUID/company. A synthetic-only rule remains visibly unvalidated on hardware.
+  3. Run a documented offline validation command that reports all matched rules and proposed labels against fixtures, including what changed compared with the previous catalog.
+  4. Run the existing regression corpus and review collisions/new candidates. Do not promote maturity solely because a positive fixture passes.
+  5. Activate the catalog in a new session after local checks; retain the old catalog for rollback and historical sessions. Record the reason for the rule revision.
+
+Acceptance: demonstrate adding a fictional, explicitly synthetic tracker signature using only a new declarative rule and its fixtures, with no scanner/UI/classifier-engine edits. Show that a scoped masked-flag rule matches the positive, rejects a wrong flag and truncated payload, and does not match the same byte under another UUID. Demonstrate protocol-only output, optional brand enrichment, conflicting brand rules, invalid-catalog rejection, and reproduction with an older catalog snapshot. The fictional example must not be enabled in the shipped live catalog.

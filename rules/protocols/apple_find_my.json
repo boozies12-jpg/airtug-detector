@@ -1,0 +1,36 @@
+{
+  "rule_id": "protocol.apple_find_my",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "validated",
+  "kind": "protocol",
+  "description": "Generic Apple Find My offline broadcast matching Company ID 0x004C with parsed record type 0x12 and body length 25 bytes (0x19).",
+  "evidence_references": [
+    {
+      "source": "external_spec",
+      "description": "OpenHaystack research firmware Reference A1",
+      "url_or_ref": "https://github.com/seemoo-lab/openhaystack"
+    }
+  ],
+  "output": {
+    "protocol_family": "Apple Find My",
+    "brand": null,
+    "model": null,
+    "brand_source": null,
+    "status_text": "Apple Find My broadcast; physical model unknown",
+    "is_candidate": true,
+    "candidate_group": "protocol_match"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "company_id": "004c"
+      },
+      {
+        "apple_record_type": 18,
+        "apple_body_length": 25
+      }
+    ]
+  }
+}

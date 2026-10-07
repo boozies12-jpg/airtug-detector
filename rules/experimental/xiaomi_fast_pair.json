@@ -1,0 +1,37 @@
+{
+  "rule_id": "experimental.xiaomi_fast_pair",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "experimental",
+  "kind": "protocol",
+  "description": "Experimental Fast Pair signature: service FE2C with exact advertised local name 'Xiaomi Tag'. Classified as possible tracker.",
+  "evidence_references": [
+    {
+      "source": "synthetic_test",
+      "description": "Documented historical JSONL project evidence (FE2C service with Xiaomi Tag name)"
+    }
+  ],
+  "output": {
+    "protocol_family": "Fast Pair",
+    "brand": "Xiaomi",
+    "model": "Xiaomi Tag",
+    "brand_source": "advertised_name",
+    "status_text": "Xiaomi Tag (advertised name) — Fast Pair; possible tracker",
+    "is_candidate": true,
+    "candidate_group": "possible_tracker"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "service_uuid": "fe2c"
+      },
+      {
+        "exact_local_name": {
+          "name": "Xiaomi Tag",
+          "case_sensitive": true
+        }
+      }
+    ]
+  }
+}

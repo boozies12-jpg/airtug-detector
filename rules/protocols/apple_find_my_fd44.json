@@ -1,0 +1,40 @@
+{
+  "rule_id": "protocol.apple_find_my_fd44",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "experimental",
+  "kind": "protocol",
+  "description": "Experimental rule matching service UUID FD44 with normalized 21-byte service payload. Provisional signature pending negative-control validation.",
+  "evidence_references": [
+    {
+      "source": "observed_excerpt",
+      "description": "Verbatim specimen capture frames 1, 2, 4, 5 service FD44 with 21-byte payload"
+    },
+    {
+      "source": "external_spec",
+      "description": "Bluetooth SIG Assigned Numbers A3 (FD44 assigned to Apple Inc.)",
+      "url_or_ref": "https://www.bluetooth.com/specifications/assigned-numbers/"
+    }
+  ],
+  "output": {
+    "protocol_family": "Apple Find My",
+    "brand": null,
+    "model": null,
+    "brand_source": null,
+    "status_text": "Possible Find My accessory (FD44 service; format resembles operator-labeled accessory capture)",
+    "is_candidate": true,
+    "candidate_group": "possible_tracker"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "service_uuid": "fd44"
+      },
+      {
+        "payload_length_in": [21],
+        "source": "service_data"
+      }
+    ]
+  }
+}

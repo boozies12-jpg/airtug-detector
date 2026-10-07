@@ -1,0 +1,36 @@
+{
+  "rule_id": "brand.xiaomi_tag",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "validated",
+  "kind": "brand_refinement",
+  "description": "Refines Google Find Hub protocol match to Xiaomi Tag when the exact advertised local name 'Xiaomi Tag' is received.",
+  "evidence_references": [
+    {
+      "source": "observed_excerpt",
+      "description": "Xiaomi test specimen scan response frame 3 with complete local name 'Xiaomi Tag'"
+    }
+  ],
+  "output": {
+    "brand": "Xiaomi",
+    "model": "Xiaomi Tag",
+    "brand_source": "advertised_name",
+    "status_text": "Xiaomi Tag (Google Find Hub network)",
+    "is_candidate": true,
+    "candidate_group": "protocol_match"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "depends_on_rule_id": "protocol.google_find_hub"
+      },
+      {
+        "exact_local_name": {
+          "name": "Xiaomi Tag",
+          "case_sensitive": true
+        }
+      }
+    ]
+  }
+}

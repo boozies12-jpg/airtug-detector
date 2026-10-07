@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BleTrackerDetectionRule",
+  "description": "Schema for extensible BLE tracker detection rules in accordance with Cursor Product Specification Rev 3",
+  "type": "object",
+  "required": [
+    "rule_id",
+    "revision",
+    "schema_version",
+    "enabled",
+    "maturity",
+    "kind",
+    "description",
+    "evidence_references",
+    "output",
+    "conditions"
+  ],
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]+$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0.0"]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "maturity": {
+      "type": "string",
+      "enum": ["validated", "experimental"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["protocol", "brand_refinement"]
+    },
+    "description": {
+      "type": "string"
+    },
+    "evidence_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "description"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["observed_excerpt", "operator_label", "external_spec", "synthetic_test"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "url_or_ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "protocol_family": {
+          "type": ["string", "null"]
+        },
+        "brand": {
+          "type": ["string", "null"]
+        },
+        "model": {
+          "type": ["string", "null"]
+        },
+        "brand_source": {
+          "type": ["string", "null"],
+          "enum": ["advertised_name", "operator_labeled", "inferred", null]
+        },
+        "status_text": {
+          "type": "string"
+        },
+        "is_candidate": {
+          "type": "boolean"
+        },
+        "candidate_group": {
+          "type": "string",
+          "enum": ["protocol_match", "possible_tracker"]
+        }
+      }
+    },
+    "conditions": {
+      "$ref": "#/definitions/condition_node"
+    }
+  },
+  "definitions": {
+    "condition_node": {
+      "type": "object",
+      "properties": {
+        "all_of": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/condition_node" }
+        },
+        "any_of": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/condition_node" }
+        },
+        "company_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{4}$"
+        },
+        "service_uuid": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{4}$"
+        },
+        "payload_length_in": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "source": {
+          "type": "string",
+          "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+        },
+        "apple_record_type": {
+          "type": "integer"
+        },
+        "apple_body_length": {
+          "type": "integer"
+        },
+        "byte_matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["offset", "expected_hex", "source"],
+            "properties": {
+              "offset": { "type": "integer", "minimum": 0 },
+              "expected_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{2}$" },
+              "source": {
+                "type": "string",
+                "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+              }
+            }
+          }
+        },
+        "masked_flags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["offset", "mask_hex", "expected_hex", "source"],
+            "properties": {
+              "offset": { "type": "integer", "minimum": 0 },
+              "mask_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{2}$" },
+              "expected_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{2}$" },
+              "source": {
+                "type": "string",
+                "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+              }
+            }
+          }
+        },
+        "hex_prefix": {
+          "type": "object",
+          "required": ["prefix", "source"],
+          "properties": {
+            "prefix": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },
+            "source": {
+              "type": "string",
+              "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+            }
+          }
+        },
+        "exact_local_name": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "case_sensitive": { "type": "boolean", "default": true }
+          }
+        },
+        "depends_on_rule_id": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "rule_id": "protocol.google_find_hub",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "validated",
+  "kind": "protocol",
+  "description": "Generic Google Find Hub finding network broadcast matching service UUID FEAA with byte 0 of 0x40 or 0x41 and normalized payload length 21, 22, 33, or 34 bytes.",
+  "evidence_references": [
+    {
+      "source": "external_spec",
+      "description": "Google Find Hub accessory specification G1, advertising tables 15/16",
+      "url_or_ref": "https://developers.google.com/nearby/fast-pair/specifications/extensions/fmdn"
+    },
+    {
+      "source": "observed_excerpt",
+      "description": "Xiaomi test specimen frames 1, 2, 4, 5 under FEAA"
+    }
+  ],
+  "output": {
+    "protocol_family": "Google Find Hub",
+    "brand": null,
+    "model": null,
+    "brand_source": null,
+    "status_text": "Google Find Hub format match; brand unknown unless independently advertised",
+    "is_candidate": true,
+    "candidate_group": "protocol_match"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "service_uuid": "feaa"
+      },
+      {
+        "payload_length_in": [21, 22, 33, 34],
+        "source": "service_data"
+      },
+      {
+        "any_of": [
+          {
+            "byte_matches": [
+              {
+                "offset": 0,
+                "expected_hex": "40",
+                "source": "service_data"
+              }
+            ]
+          },
+          {
+            "byte_matches": [
+              {
+                "offset": 0,
+                "expected_hex": "41",
+                "source": "service_data"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
