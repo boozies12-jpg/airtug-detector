@@ -1,4 +1,4 @@
-name: Build & Release Mobile Apps (Android & iOS)
+name: Build Android APK (Release)
 
 on:
   push:
@@ -42,52 +42,35 @@ jobs:
       - name: Grant Execute Permission to Gradlew
         run: chmod +x android/gradlew
 
-      - name: Build Android Debug APK
+      - name: Build Android APK
         run: |
           cd android
           ./gradlew assembleDebug --stacktrace
 
+      - name: Prepare APK for Release
+        run: |
+          mkdir -p release-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-output/BLE-Tracker-Search.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BLE-Tracker-Search-Android-v2.0
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
+          name: BLE-Tracker-Search-APK
+          path: release-output/BLE-Tracker-Search.apk
+          retention-days: 30
 
-      - name: Create GitHub Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish GitHub Release (Latest)
         uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: latest
+          name: "BLE Tracker Search Android (Latest Build)"
+          body: |
+            ### Automated Android Build
+            - Generated automatically from branch `main` (commit `${{ github.sha }}`)
+            - Download `BLE-Tracker-Search.apk` below directly to your Android device to install.
+          draft: false
+          prerelease: false
+          files: release-output/BLE-Tracker-Search.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-ios:
-    name: Verify & Build iOS Xcode Project
-    runs-on: macos-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build Web Assets
-        run: npm run build
-
-      - name: Sync Capacitor iOS
-        run: npx cap sync ios
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app || sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Build iOS App Archive (Simulator / Generic Device)
-        run: |
-          cd ios/App
-          xcodebuild -workspace App.xcworkspace -scheme App -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
