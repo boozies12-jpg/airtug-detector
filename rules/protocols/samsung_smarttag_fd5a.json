@@ -33,9 +33,16 @@
         "service_uuid": "fd5a"
       },
       {
-        "payload_length_in": [20],
+        "payload_length_in": [
+          20
+        ],
         "source": "service_data"
       }
     ]
+  },
+  "verification": {
+    "level": "web_reference",
+    "reviewed": "2026-10-12",
+    "note": "Not lab verified. Legacy maturity is not a laboratory certification."
   }
 }

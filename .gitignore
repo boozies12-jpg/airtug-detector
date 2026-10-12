@@ -1,4 +1,13 @@
 node_modules
+vendor/
+data/sdr-captures/
+data/wireshark-captures/
+data/decoder-comparison/
+data/wireshark-profile/
+data/*.jpg
+.venv/
+*.log
+data/backend-check.json
 dist
 __pycache__
 *.pyc

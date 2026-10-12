@@ -26,18 +26,26 @@
     },
     "schema_version": {
       "type": "string",
-      "enum": ["1.0.0"]
+      "enum": [
+        "1.0.0"
+      ]
     },
     "enabled": {
       "type": "boolean"
     },
     "maturity": {
       "type": "string",
-      "enum": ["validated", "experimental"]
+      "enum": [
+        "validated",
+        "experimental"
+      ]
     },
     "kind": {
       "type": "string",
-      "enum": ["protocol", "brand_refinement"]
+      "enum": [
+        "protocol",
+        "brand_refinement"
+      ]
     },
     "description": {
       "type": "string"
@@ -46,11 +54,19 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["source", "description"],
+        "required": [
+          "source",
+          "description"
+        ],
         "properties": {
           "source": {
             "type": "string",
-            "enum": ["observed_excerpt", "operator_label", "external_spec", "synthetic_test"]
+            "enum": [
+              "observed_excerpt",
+              "operator_label",
+              "external_spec",
+              "synthetic_test"
+            ]
           },
           "description": {
             "type": "string"
@@ -65,17 +81,34 @@
       "type": "object",
       "properties": {
         "protocol_family": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "brand": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "model": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "brand_source": {
-          "type": ["string", "null"],
-          "enum": ["advertised_name", "operator_labeled", "inferred", null]
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "advertised_name",
+            "operator_labeled",
+            "inferred",
+            null
+          ]
         },
         "status_text": {
           "type": "string"
@@ -85,12 +118,56 @@
         },
         "candidate_group": {
           "type": "string",
-          "enum": ["protocol_match", "possible_tracker"]
+          "enum": [
+            "protocol_match",
+            "possible_tracker"
+          ]
         }
       }
     },
     "conditions": {
       "$ref": "#/definitions/condition_node"
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "enum": [
+            "web_reference",
+            "lab_verified",
+            "unverified"
+          ]
+        },
+        "lab_capture_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reviewed": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "level": {
+                "const": "lab_verified"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "lab_capture_sha256"
+            ]
+          }
+        }
+      ]
     }
   },
   "definitions": {
@@ -99,11 +176,15 @@
       "properties": {
         "all_of": {
           "type": "array",
-          "items": { "$ref": "#/definitions/condition_node" }
+          "items": {
+            "$ref": "#/definitions/condition_node"
+          }
         },
         "any_of": {
           "type": "array",
-          "items": { "$ref": "#/definitions/condition_node" }
+          "items": {
+            "$ref": "#/definitions/condition_node"
+          }
         },
         "company_id": {
           "type": "string",
@@ -115,11 +196,17 @@
         },
         "payload_length_in": {
           "type": "array",
-          "items": { "type": "integer" }
+          "items": {
+            "type": "integer"
+          }
         },
         "source": {
           "type": "string",
-          "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+          "enum": [
+            "manufacturer_data",
+            "service_data",
+            "parsed_apple_body"
+          ]
         },
         "apple_record_type": {
           "type": "integer"
@@ -131,13 +218,27 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["offset", "expected_hex", "source"],
+            "required": [
+              "offset",
+              "expected_hex",
+              "source"
+            ],
             "properties": {
-              "offset": { "type": "integer", "minimum": 0 },
-              "expected_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{2}$" },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expected_hex": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{2}$"
+              },
               "source": {
                 "type": "string",
-                "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+                "enum": [
+                  "manufacturer_data",
+                  "service_data",
+                  "parsed_apple_body"
+                ]
               }
             }
           }
@@ -146,35 +247,70 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["offset", "mask_hex", "expected_hex", "source"],
+            "required": [
+              "offset",
+              "mask_hex",
+              "expected_hex",
+              "source"
+            ],
             "properties": {
-              "offset": { "type": "integer", "minimum": 0 },
-              "mask_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{2}$" },
-              "expected_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{2}$" },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mask_hex": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{2}$"
+              },
+              "expected_hex": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{2}$"
+              },
               "source": {
                 "type": "string",
-                "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+                "enum": [
+                  "manufacturer_data",
+                  "service_data",
+                  "parsed_apple_body"
+                ]
               }
             }
           }
         },
         "hex_prefix": {
           "type": "object",
-          "required": ["prefix", "source"],
+          "required": [
+            "prefix",
+            "source"
+          ],
           "properties": {
-            "prefix": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },
+            "prefix": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]+$"
+            },
             "source": {
               "type": "string",
-              "enum": ["manufacturer_data", "service_data", "parsed_apple_body"]
+              "enum": [
+                "manufacturer_data",
+                "service_data",
+                "parsed_apple_body"
+              ]
             }
           }
         },
         "exact_local_name": {
           "type": "object",
-          "required": ["name"],
+          "required": [
+            "name"
+          ],
           "properties": {
-            "name": { "type": "string" },
-            "case_sensitive": { "type": "boolean", "default": true }
+            "name": {
+              "type": "string"
+            },
+            "case_sensitive": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "depends_on_rule_id": {

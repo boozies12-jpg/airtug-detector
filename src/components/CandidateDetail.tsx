@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BleDeviceItem } from '../types';
 import { CheckCircle2, Bookmark, Send, FileText } from 'lucide-react';
+import { IdentityEvidence } from './IdentityEvidence';
 
 interface CandidateDetailProps {
   device: BleDeviceItem | null;
@@ -25,7 +26,7 @@ export const CandidateDetail: React.FC<CandidateDetailProps> = ({
     );
   }
 
-  const { classification, signal } = device;
+  const { classification } = device;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col gap-6">
@@ -104,6 +105,7 @@ export const CandidateDetail: React.FC<CandidateDetailProps> = ({
       )}
 
       {/* Structured Evidence Section */}
+      <IdentityEvidence classification={classification}/>
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
           <FileText size={14} /> Structured Technical Evidence

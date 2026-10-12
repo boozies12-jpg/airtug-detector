@@ -1,0 +1,251 @@
+"""Receive-only, single primary channel BLE 1M prototype. No TX calls."""
+import argparse
+import json
+import os
+from pathlib import Path
+import queue
+import threading
+import time
+
+import numpy as np
+
+FREQUENCIES = {37: 2402000000, 38: 2426000000, 39: 2480000000}
+AA = np.unpackbits(np.frombuffer(bytes.fromhex('d6be898e'), dtype=np.uint8), bitorder='little')
+
+
+def crc24(data):
+    state = 0xAAAAAA  # reflected advertising CRCInit 0x555555
+    for byte in data:
+        for bit in range(8):
+            feedback = (state ^ (byte >> bit)) & 1
+            state >>= 1
+            if feedback:
+                state ^= 0xDA6000
+    return state.to_bytes(3, 'little')
+
+
+def whiten(bits, channel):
+    state = channel | 0x40
+    out = np.array(bits, dtype=np.uint8, copy=True)
+    for i in range(len(out)):
+        feedback = state & 1
+        out[i] ^= feedback
+        state >>= 1
+        if feedback:
+            state ^= 0x44
+    return out
+
+
+def ad_fields(data):
+    result = []
+    while data:
+        length = data[0]
+        if not length:
+            break
+        if length + 1 > len(data):
+            result.append({'malformed': data.hex()})
+            break
+        result.append({'type': data[1], 'value': data[2:1 + length].hex()})
+        data = data[1 + length:]
+    return result
+
+
+class Decoder:
+    def __init__(self, rate=4000000, channel=37):
+        if rate % 1000000 or rate < 2000000:
+            raise ValueError('Use an integer 2 or more samples per BLE 1M symbol')
+        self.sps = rate // 1000000
+        self.channel = channel
+        self.tail = np.empty(0, np.complex64)
+        self.end = 0
+        self.last_packet = -100000
+        self.candidates = 0
+        self.crc_fail = 0
+
+    def feed(self, samples, start):
+        if start != self.end:
+            self.tail = np.empty(0, np.complex64)  # never join across known loss
+        x = np.concatenate((self.tail, samples))
+        base = start - len(self.tail)
+        self.end = start + len(samples)
+        self.tail = x[-(400 * self.sps + 8):].copy()
+        if len(x) < 100 * self.sps:
+            return []
+        freq = np.angle(x[1:] * np.conj(x[:-1]))
+        pattern = AA.astype(np.int16) * 2 - 1
+        hits = []
+        for phase in range(self.sps):
+            symbols = freq[phase::self.sps]
+            signs = (symbols > 0).astype(np.int16) * 2 - 1
+            scores = np.correlate(signs, pattern, mode='valid')
+            for pos in np.flatnonzero(scores >= 28):
+                hits.append((int(pos) * self.sps + phase, symbols, int(pos)))
+        packets = []
+        for sample, symbols, pos in sorted(hits, key=lambda h: h[0]):
+            absolute = base + sample
+            if absolute <= self.last_packet + 8 * self.sps:
+                continue
+            if pos + 48 > len(symbols):
+                continue
+            aa_symbols = symbols[pos:pos + 32]
+            offset = (np.mean(aa_symbols[AA == 1]) + np.mean(aa_symbols[AA == 0])) / 2
+            bits = (symbols[pos + 32:pos + 32 + 42 * 8] > offset).astype(np.uint8)
+            plain = whiten(bits, self.channel)
+            header = np.packbits(plain[:16], bitorder='little').tobytes()
+            kind, length = header[0] & 15, header[1] & 63
+            # Legacy primary-channel packets only. Extended advertising excluded.
+            if kind > 6 or not 6 <= length <= 37:
+                continue
+            count = 2 + length + 3
+            if len(plain) < count * 8:
+                continue
+            self.candidates += 1
+            raw = np.packbits(plain[:count * 8], bitorder='little').tobytes()
+            if crc24(raw[:-3]) != raw[-3:]:
+                self.crc_fail += 1
+                continue
+            self.last_packet = absolute
+            window = x[sample:sample + (32 + count * 8) * self.sps]
+            power = float(np.mean(np.abs(window) ** 2))
+            packet = {'sample_index_host': absolute, 'channel': self.channel,
+                      'phy': 'LE1M', 'pdu_type': kind, 'crc_ok': True,
+                      'pdu_hex': raw[:-3].hex(), 'crc_hex': raw[-3:].hex(),
+                      'power_dbfs': float(10 * np.log10(max(power, 1e-20))),
+                      'power_reference': 'complex power / (2048 squared); uncalibrated',
+                      'clipped_fraction': float(np.mean((np.abs(window.real) >= 2047/2048) |
+                                                       (np.abs(window.imag) >= 2047/2048)))}
+            if kind in (0, 2, 4, 6):
+                packet['address'] = ':'.join(f'{b:02X}' for b in raw[2:8][::-1])
+                packet['address_type'] = ('public' if not raw[0] & 0x40 else
+                    {0: 'random_non_resolvable', 1: 'random_resolvable', 2: 'random_reserved', 3: 'random_static'}[raw[7] >> 6])
+                packet['ad'] = ad_fields(raw[8:2 + length])
+            packets.append(packet)
+        return packets
+
+
+def load_pluto(uri, dll_dir):
+    # Keep directory handles alive for dependent Windows DLLs.
+    global _dll_handles
+    _dll_handles = []
+    if os.name == 'nt' and dll_dir:
+        dll_dir = Path(dll_dir).resolve()
+        os.environ['PATH'] = str(dll_dir) + os.pathsep + os.environ['PATH']
+        _dll_handles.append(os.add_dll_directory(str(dll_dir)))
+    import adi
+    return adi.Pluto(uri=uri)
+
+
+def main(argv=None, on_packet=None, on_health=None, stop_event=None):
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--uri', default='ip:192.168.2.1')
+    p.add_argument('--dll-dir', default=str(Path(__file__).resolve().parents[2] / 'vendor/libiio-0.26/Windows-VS-2022-x64'))
+    p.add_argument('--channel', type=int, choices=FREQUENCIES, default=37)
+    p.add_argument('--rate', type=int, choices=(2000000, 3000000, 4000000), default=4000000)
+    p.add_argument('--gain', type=int, default=40)
+    p.add_argument('--seconds', type=float, default=30)
+    p.add_argument('--buffer', type=int, default=65536)
+    p.add_argument('--output', default='runs')
+    p.add_argument('--no-prefilter', action='store_true', help='Use the original unfiltered decoder for comparison')
+    args = p.parse_args(argv)
+    output = Path(args.output) / (time.strftime('%Y%m%d-%H%M%S') + f'-{time.time_ns() % 1000000:06d}')
+    output.mkdir(parents=True, exist_ok=False)
+    sdr = load_pluto(args.uri, args.dll_dir)
+    sdr._ctx.set_timeout(3000)
+    sdr.sample_rate = args.rate
+    sdr.rx_rf_bandwidth = 2000000
+    sdr.rx_lo = FREQUENCIES[args.channel]
+    sdr.gain_control_mode_chan0 = 'manual'
+    sdr.rx_hardwaregain_chan0 = args.gain
+    sdr.rx_buffer_size = args.buffer
+    actual_rate = int(sdr.sample_rate)
+    if actual_rate == 4000000 and not args.no_prefilter:
+        from src.domain.ble_filter import FilteredDecoder
+        decoder = FilteredDecoder(actual_rate, args.channel)
+    else:
+        decoder = Decoder(actual_rate, args.channel)
+    q = queue.Queue(maxsize=16)
+    stop = stop_event if stop_event is not None else threading.Event()
+    stats = {'received_samples': 0, 'host_dropped_samples': 0, 'queue_high_water': 0,
+             'read_errors': [], 'packets_crc_ok': 0, 'processed_blocks': 0,
+             'decode_seconds': 0., 'decode_max_seconds': 0.,
+             'max_read_seconds': 0., 'max_queue_age_seconds': 0.,
+             'source_continuity': 'UNVERIFIED: no source sample counter in IQ stream'}
+    metadata = vars(args) | {'actual_rate': actual_rate, 'actual_lo': int(sdr.rx_lo),
+                            'actual_gain': float(sdr.rx_hardwaregain_chan0),
+                            'firmware': sdr._ctx.attrs.get('fw_version', 'unknown'),
+                            'source': 'Pluto RX only', 'decoder': type(decoder).__name__,
+                            'timestamp_note': 'host clock, not RF timestamp'}
+    (output / 'config.json').write_text(json.dumps(metadata, indent=2))
+
+    def capture():
+        while not stop.is_set():
+            try:
+                read_start = time.perf_counter()
+                samples = sdr.rx().astype(np.complex64) / np.float32(2048)
+                received_at = time.perf_counter()
+                stats['max_read_seconds'] = max(stats['max_read_seconds'], received_at - read_start)
+                start = stats['received_samples']
+                stats['received_samples'] += len(samples)
+                try:
+                    q.put_nowait((start, samples, received_at))
+                    stats['queue_high_water'] = max(stats['queue_high_water'], q.qsize())
+                except queue.Full:
+                    stats['host_dropped_samples'] += len(samples)
+            except Exception as exc:
+                if not stop.is_set():
+                    stats['read_errors'].append(repr(exc))
+                stop.set()
+
+    thread = threading.Thread(target=capture, daemon=True)
+    began = time.perf_counter()
+    thread.start()
+    last_health = began
+    try:
+        with (output / 'packets.jsonl').open('w') as packets:
+            while time.perf_counter() - began < args.seconds and not stop.is_set():
+                try:
+                    start, samples, received_at = q.get(timeout=1)
+                except queue.Empty:
+                    continue
+                t = time.perf_counter()
+                stats['max_queue_age_seconds'] = max(stats['max_queue_age_seconds'], t - received_at)
+                decoded = decoder.feed(samples, start)
+                elapsed = time.perf_counter() - t
+                stats['decode_seconds'] += elapsed
+                stats['decode_max_seconds'] = max(stats['decode_max_seconds'], elapsed)
+                stats['processed_blocks'] += 1
+                for packet in decoded:
+                    packets.write(json.dumps(packet) + '\n')
+                    if on_packet:
+                        on_packet(packet)
+                stats['packets_crc_ok'] += len(decoded)
+                if on_health and time.perf_counter() - last_health >= 1:
+                    on_health(dict(stats, output=str(output)))
+                    last_health = time.perf_counter()
+    finally:
+        stop.set()
+        if getattr(sdr, '_rxbuf', None) is not None:
+            sdr._rxbuf.cancel()
+        thread.join(timeout=10)
+        stats['capture_thread_stopped'] = not thread.is_alive()
+        stats['queued_blocks_at_stop'] = q.qsize()
+        stats['wall_seconds'] = time.perf_counter() - began
+        stats['crc_failed_candidates'] = decoder.crc_fail
+        stats['block_duration_seconds'] = args.buffer / actual_rate
+        stats['mean_decode_seconds'] = stats['decode_seconds'] / max(1, stats['processed_blocks'])
+        stats['stream_test_passed'] = (not stats['read_errors'] and stats['processed_blocks'] > 1
+                                      and not stats['host_dropped_samples']
+                                      and stats['capture_thread_stopped'])
+        if not thread.is_alive():
+            sdr.rx_destroy_buffer()
+        (output / 'health.json').write_text(json.dumps(stats, indent=2))
+        if on_health:
+            on_health(dict(stats, output=str(output)))
+        else:
+            print(json.dumps({'output': str(output), **stats}, indent=2))
+    if not stats['stream_test_passed']:
+        raise SystemExit(1)
+
+
+if __name__ == '__main__':
+    main()

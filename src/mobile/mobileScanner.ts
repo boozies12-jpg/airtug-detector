@@ -235,7 +235,10 @@ export class MobileBleManager {
   }
 
   private startDemoLoop() {
-    const demoSpecimens = [
+    const demoSpecimens: Array<{
+      address: string; local_name: string | null; rssi_base: number;
+      manufacturer_data?: Record<string, string>; service_data?: Record<string, string>; service_uuids?: string[];
+    }> = [
       {
         address: "C2:9F:5B:4C:F3:69",
         local_name: "Xiaomi Tag",

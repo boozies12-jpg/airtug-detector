@@ -1,0 +1,15 @@
+{
+  "reviewed": "2026-10-12",
+  "oui": {
+    "url": "https://www.wireshark.org/download/automated/data/manuf.gz",
+    "sha256": "ef4ba1f48e1dfad48896ed47d3c49c98ee2e0d161865b6f49dcf3e04226755b1",
+    "entries": 40079,
+    "scope": "MA-L only; public addresses only"
+  },
+  "company_ids": {
+    "source": "Bleak installed manufacturer registry, derived from Bluetooth SIG assigned numbers",
+    "url": "https://www.bluetooth.com/specifications/assigned-numbers/",
+    "entries": 1930
+  },
+  "note": "Company IDs identify advertised namespaces; OUI names identify registrants, not proven device brands."
+}

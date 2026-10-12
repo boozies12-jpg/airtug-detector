@@ -32,5 +32,10 @@
         "apple_body_length": 25
       }
     ]
+  },
+  "verification": {
+    "level": "web_reference",
+    "reviewed": "2026-10-12",
+    "note": "Not lab verified. Legacy maturity is not a laboratory certification."
   }
 }

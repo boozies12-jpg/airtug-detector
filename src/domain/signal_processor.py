@@ -15,6 +15,7 @@ class SignalProcessor:
 
     def __init__(self, bucket_duration_s: float = 0.25):
         self.bucket_duration_s = bucket_duration_s
+        self.signal_unit = 'dBm'
         # Map: address -> list of raw observations [(mono_s, rssi)]
         self._raw_rssi_history: Dict[str, List[Tuple[float, int]]] = {}
         # Map: address -> list of bucketed groups [(bucket_mono_s, median_rssi)]
@@ -32,6 +33,8 @@ class SignalProcessor:
             self._bucketed_groups[address] = []
 
         self._raw_rssi_history[address].append((mono_s, rssi))
+        # SDR produces every decoded packet; bound the sliding history.
+        self._raw_rssi_history[address] = [p for p in self._raw_rssi_history[address] if p[0] >= mono_s - 125]
         self._rebucket(address)
 
     def _rebucket(self, address: str):
@@ -57,6 +60,7 @@ class SignalProcessor:
         groups = self._bucketed_groups.get(address, [])
         if not groups:
             return SignalSummary(
+                signal_unit=self.signal_unit,
                 current_rssi=None,
                 current_age_s=999.0,
                 freshness=SignalFreshness.LOST,
@@ -122,7 +126,8 @@ class SignalProcessor:
         ]
 
         return SignalSummary(
-            current_rssi=int(round(latest_rssi)),
+            signal_unit=self.signal_unit,
+            current_rssi=round(latest_rssi, 1),
             current_age_s=round(age_s, 2),
             freshness=freshness,
             summary_20s_median=round(w20_median, 1) if w20_median is not None else None,

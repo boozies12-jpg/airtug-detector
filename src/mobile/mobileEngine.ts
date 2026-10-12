@@ -1,5 +1,7 @@
 // Mobile-native classification and signal processing engine for iOS & Android
-import { BleDeviceItem, SignalSummary, ClassificationResult, AppStatus } from '../types';
+import { SignalSummary, ClassificationResult } from '../types';
+import companies from '../../catalog/company_identifiers.json';
+import profiles from '../../catalog/tracker_profiles.json';
 
 // Import all JSON rules bundled with Vite
 const ruleModules = import.meta.glob('../../rules/**/*.json', { eager: true });
@@ -31,6 +33,8 @@ export interface RuleCondition {
 }
 
 export interface RuleDefinition {
+  verification?: { level: string; lab_capture_sha256?: string };
+  evidence_references?: Array<{description: string; url_or_ref?: string}>;
   rule_id: string;
   revision: number;
   schema_version: string;
@@ -195,6 +199,11 @@ export class MobileClassifier {
   }
 
   private evalCondition(cond: RuleCondition, rec: NormalizedRecord, matchedRules: Set<string>): boolean {
+    const nodes = cond.all_of || [cond];
+    const services = [...new Set(nodes.flatMap(x => x.service_uuid ? [x.service_uuid.toLowerCase()] : []))];
+    const ids = [...new Set(nodes.flatMap(x => x.company_id ? [x.company_id.toLowerCase()] : []))];
+    if (services.length === 1) rec = {...rec, service_data: Object.fromEntries(Object.entries(rec.service_data).filter(([k]) => k === services[0]))};
+    if (ids.length === 1) rec = {...rec, manufacturer_data: Object.fromEntries(Object.entries(rec.manufacturer_data).filter(([k]) => k === ids[0]))};
     if (cond.all_of) {
       for (const sub of cond.all_of) {
         if (!this.evalCondition(sub, rec, matchedRules)) return false;
@@ -392,7 +401,9 @@ export class MobileClassifier {
       brand_source: null,
       status_text: "Background device",
       matched_rule_ids: [],
-      evidence: {},
+      evidence: {address_type: 'unknown', company_names: Object.keys(rec.manufacturer_data).map(k =>
+        `${(companies as Record<string,string>)[k] || 'Unknown company'} (0x${k.toUpperCase()})`),
+        mfg_keys: Object.keys(rec.manufacturer_data), service_data_keys: Object.keys(rec.service_data)},
       conflicts: []
     };
 
@@ -437,6 +448,11 @@ export class MobileClassifier {
       }
     }
 
+    const matched = [...this.rules.values()].filter(rule => matchedRuleIds.has(rule.rule_id));
+    bestResult.lab_verified = matched.length > 0 && matched.every(r => r.verification?.level === 'lab_verified' && r.verification?.lab_capture_sha256);
+    bestResult.evidence_level = bestResult.lab_verified ? 'lab_verified' : matched.length ? 'web_reference' : 'unverified';
+    bestResult.evidence.rule_evidence = matched.map(r => ({rule_id: r.rule_id, level: r.verification?.level || 'web_reference', references: r.evidence_references || []}));
+    bestResult.evidence.compatible_profiles = profiles.filter(p => p.networks.includes(bestResult.protocol_family || ''));
     return bestResult;
   }
 }

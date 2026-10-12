@@ -32,7 +32,12 @@
         "service_uuid": "feaa"
       },
       {
-        "payload_length_in": [21, 22, 33, 34],
+        "payload_length_in": [
+          21,
+          22,
+          33,
+          34
+        ],
         "source": "service_data"
       },
       {
@@ -58,5 +63,10 @@
         ]
       }
     ]
+  },
+  "verification": {
+    "level": "web_reference",
+    "reviewed": "2026-10-12",
+    "note": "Not lab verified. Legacy maturity is not a laboratory certification."
   }
 }

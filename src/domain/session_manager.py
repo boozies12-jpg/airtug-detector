@@ -40,7 +40,7 @@ class SessionManager:
             self.close_session()
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        self.current_session_id = f"session_{timestamp}"
+        self.current_session_id = f"session_{timestamp}_{time.time_ns() % 1000000000:09d}"
         session_folder = os.path.join(self.sessions_dir, self.current_session_id)
         os.makedirs(session_folder, exist_ok=True)
 
@@ -70,6 +70,9 @@ class SessionManager:
             "mono_s": record.monotonic_timestamp_s,
             "address": record.address,
             "rssi": record.rssi,
+            "source": record.source,
+            "signal_unit": record.signal_unit,
+            "raw_sdr_metadata": record.raw_sdr_metadata,
             "local_name": record.local_name,
             "service_uuids": record.service_uuids,
             "service_data": record.service_data,
@@ -150,7 +153,10 @@ class SessionManager:
             "Protocol Family",
             "Brand",
             "Model",
-            "Status Text"
+            "Status Text",
+            "Source",
+            "Signal Unit", "Evidence Level", "Lab Verified", "Address Type",
+            "Advertised Company IDs", "OUI Registrant"
         ])
 
         if os.path.exists(obs_path):
@@ -170,6 +176,13 @@ class SessionManager:
                         sanitize_csv_field(cls.get("protocol_family")),
                         sanitize_csv_field(cls.get("brand")),
                         sanitize_csv_field(cls.get("model")),
-                        sanitize_csv_field(cls.get("status_text"))
+                        sanitize_csv_field(cls.get("status_text")),
+                        sanitize_csv_field(row.get("source", "computer")),
+                        sanitize_csv_field(row.get("signal_unit", "dBm")),
+                        sanitize_csv_field(cls.get("evidence_level", "unverified")),
+                        bool(cls.get("lab_verified", False)),
+                        sanitize_csv_field((cls.get('evidence') or {}).get('address_type', 'unknown')),
+                        sanitize_csv_field('; '.join((cls.get('evidence') or {}).get('company_names', []))),
+                        sanitize_csv_field((cls.get('evidence') or {}).get('oui_registrant'))
                     ])
         return output.getvalue()

@@ -77,3 +77,64 @@ Run all unit, regression, timing, and throughput load tests:
 ```bash
 python3 -m pytest tests/
 ```
+# Desktop SDR receiver option
+
+For the Hebrew implementation walkthrough and desktop shortcut instructions,
+see [SDR BLE guide](docs/SDR_BLE_GUIDE.md). Run `python sniff_sdr.py` for live
+Wireshark 4.x reception or `python sniff_sdr.py --no-wireshark --seconds 30` to
+save a PCAPNG. Captures are saved in `data/wireshark-captures/`. Power is stored
+as dBFS in packet comments, not falsely labeled as RF dBm.
+
+The desktop UI now has a **Scan source** selector: Computer Bluetooth or Pluto
+SDR (single fixed channel 37, 2402 MHz). Stop the current scan before changing
+sources. Both paths use the existing normalizer, rule catalog, candidate list,
+signal processor, target gauge, checkpoints, and export.
+
+For SDR, install `requirements-sdr.txt` and provide the official libiio v0.26
+Windows x64 DLLs in `vendor/libiio-0.26/Windows-VS-2022-x64`, or set
+`PLUTO_DLL_DIR` to their directory. Release:
+https://github.com/analogdevicesinc/libiio/releases/tag/v0.26 . Build the frontend
+with `npm ci` and `npm run build`, then run the existing Python entry point.
+
+Computer readings use dBm; SDR readings use uncalibrated complex-power dBFS at
+fixed gain 40 dB. The legacy `rssi` JSON field must be interpreted together with
+`signal_unit`; it is not calibrated RSSI for SDR. Units and source are saved in
+observations, checkpoints and CSV. Raw decoded SDR packets and capture-health
+reports are also saved under `data/sdr-captures/` (ignored by Git).
+
+SDR capture is receive-only and runs in a separate process. It supports legacy
+BLE 1M advertising, not extended advertising or all three primary channels at
+once. It cannot solicit names through active scan requests. Host queue drops
+and read errors are monitored; hardware sample continuity remains unverified
+without a source sample counter. Valid CRC does not prove lossless reception.
+
+Run `python -m pytest -q` for tests. `python check_live_backends.py` explicitly
+uses the attached hardware to test Computer -> SDR -> Computer and writes its
+report to `data/backend-check.json`. Stop other SDR apps before running it.
+
+The 4 MSPS receiver now uses a validated 49-tap Hamming channel FIR before
+demodulation (650 kHz cutoff). Packet power is still measured on original IQ,
+with the FIR group delay compensated. SciPy is required by `requirements-sdr.txt`.
+`--no-prefilter` on `python -m src.domain.sdr_rx` restores the original decoder.
+The app and SDR Wireshark shortcut use the filtered receiver automatically.
+
+Same-IQ comparisons against GNU Radio 3.10.12 are reproducible using
+`experiments/compare_decoders.py` in the installed Ubuntu/WSL environment.
+See `docs/SDR_BLE_GUIDE.md` for methodology, limitations, and results, and
+`docs/decoder-comparison-2026-10-11.json` for numerical evidence. The tested
+generic GNU Radio GFSK path did not outperform the filtered custom receiver,
+so GNU Radio remains an offline comparison dependency rather than the live backend.
+
+Device lists auto-order for the first 60 seconds of a scan, then keep their positions.
+Use **Sort & filter → Apply & lock** to take a new snapshot by signal, name, or last
+seen, with name/company/address, minimum signal, and recency filters. Filters are
+snapshots too; readings continue updating without rows disappearing as RSSI changes.
+Unfiltered new devices append. Pinning takes effect on the next explicit sort.
+
+Classification details distinguish **Web reference — not lab verified** from lab
+verification. The research catalog documents Chipolo Spot/POP, Pixel Tag, Huawei
+Tag, Tile and Chipolo own-network coverage without claiming unsupported models.
+Address registrants and advertised company IDs are separate, qualified hints.
+See [research and evidence policy](docs/TRACKER_RESEARCH.md),
+[English receiver guide](docs/SDR_BLE_GUIDE.md), and
+[Git details and setup](docs/GIT_AND_SETUP.md).

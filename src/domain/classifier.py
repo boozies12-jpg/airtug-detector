@@ -8,6 +8,7 @@ try:
 except (ImportError, Exception):
     HAS_JSONSCHEMA = False
 from pydantic import BaseModel
+from .device_identity import identity_hints, PROFILES
 from .models import (
     NormalizedBleRecord,
     ClassificationResult,
@@ -18,6 +19,7 @@ from .models import (
 )
 
 class RuleDefinition(BaseModel):
+    verification: Dict[str, Any] = {}
     rule_id: str
     revision: int
     schema_version: str
@@ -90,6 +92,14 @@ class ClassifierEngine:
         self.catalog = catalog
 
     def _eval_condition(self, cond: Dict[str, Any], record: NormalizedBleRecord, matched_ids: Set[str]) -> bool:
+        # Bind byte/length tests to their named payload, never another service.
+        selectors = cond.get('all_of', [cond])
+        services = {x['service_uuid'].lower() for x in selectors if 'service_uuid' in x}
+        companies = {x['company_id'].lower() for x in selectors if 'company_id' in x}
+        if len(services) == 1:
+            record = record.model_copy(update={'service_data': {k: v for k, v in record.service_data.items() if k in services}})
+        if len(companies) == 1:
+            record = record.model_copy(update={'manufacturer_data': {k: v for k, v in record.manufacturer_data.items() if k in companies}})
         if "all_of" in cond:
             return all(self._eval_condition(sub, record, matched_ids) for sub in cond["all_of"])
 
@@ -258,12 +268,14 @@ class ClassifierEngine:
                         protocol_family=None,
                         brand=None,
                         status_text="Apple proximity pairing (non-tracker)",
-                        matched_rule_ids=[]
+                        matched_rule_ids=[],
+                        evidence=identity_hints(record)
                     )
             return ClassificationResult(
                 is_candidate=False,
                 status_text="Unknown device",
-                matched_rule_ids=[]
+                matched_rule_ids=[],
+                evidence=identity_hints(record)
             )
 
         # Merge results deterministically
@@ -287,13 +299,13 @@ class ClassifierEngine:
         if len(protocol_families) > 1:
             conflicts.append(f"Multiple conflicting protocol families: {list(protocol_families)}")
 
-        chosen_proto = next(iter(protocol_families)) if protocol_families else None
+        chosen_proto = sorted(protocol_families)[0] if protocol_families else None
         chosen_brand = None
         chosen_model = None
         chosen_brand_source = None
 
         if brands:
-            b, m, bs = next(iter(brands))
+            b, m, bs = sorted(brands, key=lambda x: str(x))[0]
             chosen_brand = b
             chosen_model = m
             chosen_brand_source = BrandSource(bs) if bs else None
@@ -305,6 +317,8 @@ class ClassifierEngine:
             chosen_group = CandidateGroup.POSSIBLE_TRACKER
 
         return ClassificationResult(
+            evidence_level='lab_verified' if all(r.verification.get('lab_capture_sha256') and r.verification.get('level') == 'lab_verified' for r in all_matched) else 'web_reference',
+            lab_verified=all(r.verification.get('lab_capture_sha256') and r.verification.get('level') == 'lab_verified' for r in all_matched),
             is_candidate=True,
             candidate_group=chosen_group,
             protocol_family=chosen_proto,
@@ -315,6 +329,9 @@ class ClassifierEngine:
             matched_rule_ids=[r.rule_id for r in all_matched],
             conflicts=conflicts,
             evidence={
+                **identity_hints(record),
+                'rule_evidence': [{'rule_id': r.rule_id, 'level': r.verification.get('level', 'web_reference'), 'references': r.evidence_references} for r in all_matched],
+                'compatible_profiles': [p for p in PROFILES if chosen_proto in p['networks']],
                 "local_name": record.local_name,
                 "service_uuids": record.service_uuids,
                 "service_data_keys": list(record.service_data.keys()),

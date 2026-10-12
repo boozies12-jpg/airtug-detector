@@ -17,7 +17,7 @@
     "brand": "Xiaomi",
     "model": "Xiaomi Tag",
     "brand_source": "advertised_name",
-    "status_text": "Xiaomi Tag (advertised name) — Fast Pair; possible tracker",
+    "status_text": "Xiaomi Tag (advertised name) \u2014 Fast Pair; possible tracker",
     "is_candidate": true,
     "candidate_group": "possible_tracker"
   },
@@ -33,5 +33,10 @@
         }
       }
     ]
+  },
+  "verification": {
+    "level": "web_reference",
+    "reviewed": "2026-10-12",
+    "note": "Not lab verified. Legacy maturity is not a laboratory certification."
   }
 }

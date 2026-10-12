@@ -18,7 +18,7 @@ class AudioFeedbackManager {
     }
   }
 
-  public playCueForRssi(rssi: number | null) {
+  public playCueForRssi(rssi: number | null, unit: string = 'dBm') {
     if (!this.enabled || rssi === null) return;
 
     const now = performance.now();
@@ -36,8 +36,10 @@ class AudioFeedbackManager {
       const gain = this.ctx.createGain();
 
       // Pitch mapping: -100 dBm (low ~220Hz) to -30 dBm (high ~880Hz)
-      const clampedRssi = Math.max(-100, Math.min(-30, rssi));
-      const normalized = (clampedRssi - (-100)) / ((-30) - (-100)); // 0.0 to 1.0
+      const low = unit === 'dBFS' ? -70 : -100;
+      const high = unit === 'dBFS' ? 0 : -30;
+      const clampedRssi = Math.max(low, Math.min(high, rssi));
+      const normalized = (clampedRssi - low) / (high - low);
       const freq = 220 + normalized * 660; // 220Hz to 880Hz
 
       osc.type = 'sine';

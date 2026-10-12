@@ -1,0 +1,5 @@
+-r requirements.txt
+numpy>=2.3
+scipy>=1.15
+pyadi-iio==0.0.21
+pylibiio==0.25

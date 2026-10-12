@@ -1,4 +1,5 @@
 export interface SignalSummary {
+  signal_unit?: 'dBm' | 'dBFS';
   current_rssi: number | null;
   current_age_s: number;
   freshness: "Recent observation" | "Waiting for next observation" | "No recent signal" | "Signal Lost";
@@ -11,6 +12,8 @@ export interface SignalSummary {
 }
 
 export interface ClassificationResult {
+  evidence_level?: string;
+  lab_verified?: boolean;
   is_candidate: boolean;
   candidate_group?: "protocol_match" | "possible_tracker";
   protocol_family?: string | null;
@@ -34,6 +37,11 @@ export interface BleDeviceItem {
 }
 
 export interface AppStatus {
+  scan_elapsed_s?: number;
+  capture_source?: 'computer' | 'sdr' | 'demo';
+  signal_unit?: 'dBm' | 'dBFS';
+  scanner_error?: string | null;
+  capture_health?: { packets_crc_ok?: number; host_dropped_samples?: number; queue_high_water?: number; read_errors?: string[]; source_continuity?: string };
   is_scanning: boolean;
   is_demo: boolean;
   current_session_id: string | null;

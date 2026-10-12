@@ -1,6 +1,7 @@
 import React from 'react';
 import { BleDeviceItem } from '../types';
 import { Pin, CheckCircle2 } from 'lucide-react';
+import { EvidenceBadge } from './IdentityEvidence';
 
 interface CandidateListProps {
   candidates: BleDeviceItem[];
@@ -77,13 +78,14 @@ export const CandidateList: React.FC<CandidateListProps> = ({
             <div className="text-xs text-slate-400 mt-1 truncate">
               {item.classification.status_text}
             </div>
+            <EvidenceBadge classification={item.classification}/>
           </div>
         </div>
 
         <div className="text-right flex flex-col items-end shrink-0 pl-1">
           <span className="text-lg font-black text-slate-700 whitespace-nowrap">
             {rssi !== null ? `${rssi}` : "--"}{" "}
-            <span className="text-xs font-semibold text-slate-400">dBm</span>
+            <span className="text-xs font-semibold text-slate-400">{item.signal.signal_unit || 'dBm'}</span>
           </span>
           <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
             {item.signal.current_age_s}s ago
@@ -102,12 +104,12 @@ export const CandidateList: React.FC<CandidateListProps> = ({
             Protocol Matches ({protocolMatches.length})
           </h3>
           <span className="text-[11px] text-slate-400 font-medium">
-            Confirmed finding network format
+            Network format; model may be unknown
           </span>
         </div>
         {protocolMatches.length === 0 ? (
           <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
-            No confirmed protocol matches observed yet.
+            No protocol format matches observed yet.
           </div>
         ) : (
           <div className="flex flex-col gap-2">{protocolMatches.map(renderItem)}</div>

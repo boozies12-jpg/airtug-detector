@@ -2,6 +2,8 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Callable, Any
+from types import SimpleNamespace
+from .sdr_backend import SdrBackend, parse_advertisement
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
@@ -42,13 +44,29 @@ class AcquisitionOrchestrator:
         self._scanner: Optional[BleakScanner] = None
         self._demo_task: Optional[asyncio.Task] = None
         self._scan_start_mono: float = 0.0
+        self.source = 'computer'
+        self.capture_health = {}
+        self.last_error = None
+        self._sdr = None
+        self._last_emit = {}
 
-    async def start_scan(self, session_name: str = "", demo_mode: bool = False):
+    async def start_scan(self, session_name: str = "", demo_mode: bool = False,
+                         source: str = 'computer', sdr_uri: str = 'ip:192.168.2.1'):
         if self.is_scanning:
-            return
+            raise ValueError('Stop the current scan before changing receivers')
+        if source not in ('computer', 'sdr'):
+            raise ValueError('Unsupported capture source')
 
         self.is_demo = demo_mode
         self.is_scanning = True
+        self.source = 'demo' if demo_mode else source
+        self.capture_health = {}
+        self.last_error = None
+        self.selected_target_address = None
+        self.pinned_addresses.clear()
+        self.found_addresses.clear()
+        self._last_emit.clear()
+        self.signal_processor.signal_unit = 'dBFS' if self.source == 'sdr' else 'dBm'
         self._scan_start_mono = time.monotonic()
         self.signal_processor.clear()
         self.devices.clear()
@@ -63,6 +81,14 @@ class AcquisitionOrchestrator:
 
         if self.is_demo:
             self._demo_task = asyncio.create_task(self._run_demo_feed())
+        elif self.source == 'sdr':
+            self._sdr = SdrBackend(self._handle_sdr_packet, self._handle_sdr_health, self._handle_sdr_error)
+            try:
+                await self._sdr.start(sdr_uri)
+            except BaseException as exc:
+                self.last_error = str(exc) or 'SDR startup timed out'
+                await self.stop_scan()
+                raise
         else:
             try:
                 self._scanner = BleakScanner(
@@ -72,6 +98,8 @@ class AcquisitionOrchestrator:
                 await self._scanner.start()
             except Exception as e:
                 self.is_scanning = False
+                self.last_error = str(e)
+                self.session_manager.close_session()
                 if self.event_callback:
                     self.event_callback("scanner_error", {"error": str(e)})
                 raise e
@@ -87,6 +115,9 @@ class AcquisitionOrchestrator:
             return
 
         self.is_scanning = False
+        if self._sdr:
+            sdr, self._sdr = self._sdr, None
+            await sdr.stop()
         if self._demo_task:
             self._demo_task.cancel()
             self._demo_task = None
@@ -128,7 +159,32 @@ class AcquisitionOrchestrator:
         if self.event_callback:
             self.event_callback("found_updated", {"address": address, "is_found": is_found, "notes": notes})
 
+    def _handle_sdr_health(self, health):
+        self.capture_health = health
+
+    def _handle_sdr_error(self, error):
+        self.last_error = error
+        if self.event_callback:
+            self.event_callback('scanner_error', {'error': error})
+        if self.is_scanning:
+            asyncio.create_task(self.stop_scan())
+
+    def _handle_sdr_packet(self, packet):
+        data = parse_advertisement(packet)
+        if data is None or not self.is_scanning:
+            return
+        device = SimpleNamespace(address=data['address'], name=None)
+        adv = SimpleNamespace(local_name=data['name'], manufacturer_data=data['manufacturer'],
+                              service_data=data['services'], service_uuids=data['uuids'],
+                              tx_power=None, rssi=packet['power_dbfs'])
+        self._ingest_detection(device, adv, packet)
+
     def _handle_bleak_detection(self, device: BLEDevice, adv_data: AdvertisementData):
+        self._ingest_detection(device, adv_data)
+
+    def _ingest_detection(self, device, adv_data, sdr_packet=None):
+        if not self.is_scanning:
+            return
         mono_s = time.monotonic()
         now_utc = datetime.now(timezone.utc).isoformat()
 
@@ -167,6 +223,10 @@ class AcquisitionOrchestrator:
             now_utc=now_utc,
             mono_s=mono_s
         )
+        record.source = self.source
+        record.signal_unit = self.signal_processor.signal_unit
+        if sdr_packet is not None:
+            record.raw_sdr_metadata = sdr_packet
 
         # Update signal processor
         if adv_data.rssi is not None:
@@ -185,7 +245,8 @@ class AcquisitionOrchestrator:
         self.session_manager.log_observation(record, classification)
 
         # Dispatch event
-        if self.event_callback:
+        if self.event_callback and mono_s - self._last_emit.get(record.address, 0) >= .25:
+            self._last_emit[record.address] = mono_s
             summary = self.signal_processor.get_summary(record.address, mono_s)
             self.event_callback("device_updated", {
                 "address": record.address,

@@ -38,7 +38,10 @@ class ParsedAppleRecord(BaseModel):
 
 class NormalizedBleRecord(BaseModel):
     address: str
-    rssi: Optional[int] = None
+    rssi: Optional[float] = None  # compatibility field; interpret with signal_unit
+    source: str = 'computer'
+    signal_unit: str = 'dBm'
+    raw_sdr_metadata: Dict[str, Any] = Field(default_factory=dict)
     local_name: Optional[str] = None
     manufacturer_data: Dict[str, str] = Field(default_factory=dict)
     service_data: Dict[str, str] = Field(default_factory=dict)
@@ -50,6 +53,8 @@ class NormalizedBleRecord(BaseModel):
     raw_hci_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class ClassificationResult(BaseModel):
+    evidence_level: str = 'unverified'
+    lab_verified: bool = False
     is_candidate: bool = False
     candidate_group: Optional[CandidateGroup] = None
     protocol_family: Optional[str] = None
@@ -62,7 +67,8 @@ class ClassificationResult(BaseModel):
     conflicts: List[str] = Field(default_factory=list)
 
 class SignalSummary(BaseModel):
-    current_rssi: Optional[int] = None
+    current_rssi: Optional[float] = None
+    signal_unit: str = 'dBm'
     current_age_s: float = 0.0
     freshness: SignalFreshness = SignalFreshness.WAITING
     summary_20s_median: Optional[float] = None
@@ -73,6 +79,8 @@ class SignalSummary(BaseModel):
     recent_history: List[Dict[str, Any]] = Field(default_factory=list)
 
 class CheckpointRecord(BaseModel):
+    source: str = 'computer'
+    signal_unit: str = 'dBm'
     checkpoint_id: str
     position_label: str
     target_address: str

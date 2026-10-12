@@ -22,8 +22,11 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
   }
 
   const rssi = signal.current_rssi;
+  const unit = signal.signal_unit || 'dBm';
+  const low = unit === 'dBFS' ? -70 : -100;
+  const high = unit === 'dBFS' ? 0 : -30;
   // RSSI percentage (scale: -100 dBm = 0%, -30 dBm = 100%)
-  const percentage = rssi !== null ? Math.max(0, Math.min(100, Math.round(((rssi - (-100)) / 70) * 100))) : 0;
+  const percentage = rssi !== null ? Math.max(0, Math.min(100, Math.round(((rssi - low) / (high - low)) * 100))) : 0;
 
   // Freshness styling
   const isStale = signal.freshness !== "Recent observation";
@@ -37,8 +40,8 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
   };
 
   const getY = (r: number) => {
-    const clampedR = Math.max(-100, Math.min(-30, r));
-    const norm = (clampedR - (-100)) / 70; // 0.0 at -100, 1.0 at -30
+    const clampedR = Math.max(low, Math.min(high, r));
+    const norm = (clampedR - low) / (high - low);
     return 104 - norm * 92;
   };
 
@@ -107,7 +110,7 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
           >
             {rssi !== null ? `${rssi}` : "--"}
           </span>
-          <span className="text-lg font-semibold text-slate-500">dBm</span>
+          <span className="text-lg font-semibold text-slate-500">{unit}</span>
           {isStale && (
             <span className="text-xs bg-slate-100 text-slate-500 font-semibold px-2 py-0.5 rounded ml-2">
               HISTORICAL
@@ -122,7 +125,7 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
               20s Window Summary
             </div>
             <div className="text-lg font-bold text-slate-800">
-              {signal.summary_20s_median !== null ? `${signal.summary_20s_median} dBm` : "None"}
+              {signal.summary_20s_median !== null ? `${signal.summary_20s_median} ${unit}` : "None"}
             </div>
             <div className="text-[11px] text-slate-500">
               {signal.summary_20s_count} groups, {signal.summary_20s_coverage_s}s span
@@ -137,19 +140,19 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
               {signal.trend_20s === "Stronger" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                   <ArrowUp size={14} className="stroke-[3]" />
-                  <span>+{signal.trend_diff_db} dB (Closing in)</span>
+                  <span>+{signal.trend_diff_db} dB (Stronger signal)</span>
                 </span>
               )}
               {signal.trend_20s === "Weaker" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
                   <ArrowDown size={14} className="stroke-[3]" />
-                  <span>{signal.trend_diff_db} dB (Moving away)</span>
+                  <span>{signal.trend_diff_db} dB (Weaker signal)</span>
                 </span>
               )}
               {signal.trend_20s === "Stable" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
                   <Minus size={14} className="stroke-[3]" />
-                  <span>Stable Distance</span>
+                  <span>Stable signal</span>
                 </span>
               )}
               {signal.trend_20s === "Insufficient Data" && (
@@ -183,10 +186,10 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
         <div className="flex items-center justify-between mb-1 px-1">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
             <Activity size={14} className="text-blue-600" />
-            <span>Target RSSI History (-30s to 0s)</span>
+            <span>Target Signal History (-30s to 0s)</span>
           </div>
           <span className="text-[11px] text-slate-400 font-mono">
-            Scale: -100 to -30 dBm
+            Scale: {low} to {high} {unit}
           </span>
         </div>
 
@@ -208,19 +211,19 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
             {/* -50 dBm (Close) -> Y=38.3 */}
             <line x1="55" y1="38.3" x2="525" y2="38.3" stroke="#cbd5e1" strokeDasharray="3 3" />
             <text x="50" y="41.5" textAnchor="end" fill="#64748b" fontSize="9.5" fontWeight="600">
-              -50 (Close)
+              {high - 20}
             </text>
 
             {/* -70 dBm (Medium) -> Y=64.6 */}
             <line x1="55" y1="64.6" x2="525" y2="64.6" stroke="#e2e8f0" strokeDasharray="3 3" />
             <text x="50" y="67.5" textAnchor="end" fill="#94a3b8" fontSize="9.5" fontWeight="500">
-              -70 (Med)
+              {high - 40}
             </text>
 
             {/* -90 dBm (Weak) -> Y=90.9 */}
             <line x1="55" y1="90.9" x2="525" y2="90.9" stroke="#e2e8f0" strokeDasharray="3 3" />
             <text x="50" y="93.5" textAnchor="end" fill="#94a3b8" fontSize="9.5" fontWeight="500">
-              -90 (Weak)
+              {high - 60}
             </text>
 
             {/* Bottom Base Line (Y=104) */}

@@ -1,7 +1,7 @@
 import os
 import asyncio
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -85,18 +85,33 @@ async def startup_event():
 class StartScanRequest(BaseModel):
     session_name: Optional[str] = ""
     demo_mode: bool = False
+    source: Literal['computer', 'sdr'] = 'computer'
+    sdr_uri: str = 'ip:192.168.2.1'
+
+scan_lock = asyncio.Lock()
+
+@app.on_event('shutdown')
+async def shutdown_event():
+    await orchestrator.stop_scan()
 
 @app.post("/api/scan/start")
 async def start_scan(req: StartScanRequest):
     try:
-        await orchestrator.start_scan(session_name=req.session_name or "", demo_mode=req.demo_mode)
+        async with scan_lock:
+            if orchestrator.is_scanning:
+                raise HTTPException(status_code=409, detail='Stop the current scan before changing receivers')
+            await orchestrator.start_scan(session_name=req.session_name or "", demo_mode=req.demo_mode,
+                                          source=req.source, sdr_uri=req.sdr_uri)
         return {"status": "started", "session_id": session_manager.current_session_id, "demo_mode": req.demo_mode}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/scan/stop")
 async def stop_scan():
-    await orchestrator.stop_scan()
+    async with scan_lock:
+        await orchestrator.stop_scan()
     return {"status": "stopped"}
 
 @app.get("/api/status")
@@ -108,7 +123,12 @@ async def get_status():
 
     return {
         "is_scanning": orchestrator.is_scanning,
+        "scan_elapsed_s": max(0, mono_now - orchestrator._scan_start_mono) if orchestrator._scan_start_mono else 0,
         "is_demo": orchestrator.is_demo,
+        "capture_source": orchestrator.source,
+        "signal_unit": signal_processor.signal_unit,
+        "capture_health": orchestrator.capture_health,
+        "scanner_error": orchestrator.last_error,
         "current_session_id": session_manager.current_session_id,
         "selected_target_address": orchestrator.selected_target_address,
         "selected_target_summary": target_summary,
@@ -199,6 +219,8 @@ async def record_checkpoint(req: CheckpointCreateRequest):
     summary = signal_processor.get_summary(addr, mono_now)
 
     checkpoint = CheckpointRecord(
+        source=orchestrator.source,
+        signal_unit=signal_processor.signal_unit,
         checkpoint_id=f"cp_{int(time.time())}",
         position_label=req.position_label,
         target_address=addr,

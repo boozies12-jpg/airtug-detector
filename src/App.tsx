@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LocatingGauge } from './components/LocatingGauge';
 import { CandidateList } from './components/CandidateList';
+import { DeviceListControls, useDeviceOrder } from './components/DeviceListControls';
+import { TrackerResearchCatalog } from './components/IdentityEvidence';
 import { CandidateDetail } from './components/CandidateDetail';
 import { BleDeviceItem, AppStatus } from './types';
 import { audioFeedback } from './utils/audio';
@@ -14,8 +16,7 @@ import {
   Sparkles,
   Clock,
   ShieldCheck,
-  Pin,
-  Smartphone
+  Pin
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -25,8 +26,12 @@ export const App: React.FC = () => {
   const [otherDevices, setOtherDevices] = useState<BleDeviceItem[]>([]);
   const [activeTab, setActiveTab] = useState<'candidates' | 'others' | 'details'>('candidates');
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [sessionName, setSessionName] = useState('Search Area 1');
+  const [sessionName] = useState('Search Area 1');
   const [scanElapsedS, setScanElapsedS] = useState(0);
+  const [captureSource, setCaptureSource] = useState<'computer' | 'sdr'>('computer');
+  const [sdrUri, setSdrUri] = useState('ip:192.168.2.1');
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState('');
 
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -87,7 +92,7 @@ export const App: React.FC = () => {
             const dev = msg.data;
             // Trigger throttled audio feedback if device matches selected target
             if (dev.address === status?.selected_target_address) {
-              audioFeedback.playCueForRssi(dev.signal.current_rssi);
+              audioFeedback.playCueForRssi(dev.signal.current_rssi, dev.signal.signal_unit);
             }
             if (dev.classification.is_candidate) {
               setCandidates((prev) => {
@@ -140,12 +145,26 @@ export const App: React.FC = () => {
       }
       return;
     }
-    await fetch('/api/scan/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_name: sessionName, demo_mode: demo })
-    });
-    refreshData();
+    setScanBusy(true);
+    setScanError('');
+    setCandidates([]);
+    setOtherDevices([]);
+    try {
+      const response = await fetch('/api/scan/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_name: sessionName, demo_mode: demo, source: captureSource, sdr_uri: sdrUri })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(typeof error.detail === 'string' ? error.detail : 'Receiver could not start');
+      }
+    } catch (error) {
+      setScanError(String(error));
+    } finally {
+      setScanBusy(false);
+      refreshData();
+    }
   };
 
   const handleStopScan = async () => {
@@ -153,8 +172,16 @@ export const App: React.FC = () => {
       await mobileBleManager.stopScan();
       return;
     }
-    await fetch('/api/scan/stop', { method: 'POST' });
-    refreshData();
+    setScanBusy(true);
+    try {
+      const response = await fetch('/api/scan/stop', { method: 'POST' });
+      if (!response.ok) throw new Error('Could not stop receiver');
+    } catch (error) {
+      setScanError(String(error));
+    } finally {
+      setScanBusy(false);
+      refreshData();
+    }
   };
 
   const handleSelectTarget = async (address: string) => {
@@ -213,12 +240,10 @@ export const App: React.FC = () => {
     otherDevices.find((o) => o.address === status?.selected_target_address) ||
     null;
 
-  // Sort other devices: pinned devices first, then descending by RSSI
-  const sortedOtherDevices = [...otherDevices].sort((a, b) => {
-    if (a.is_pinned && !b.is_pinned) return -1;
-    if (!a.is_pinned && b.is_pinned) return 1;
-    return (b.signal.current_rssi ?? -999) - (a.signal.current_rssi ?? -999);
-  });
+  const elapsed = status?.scan_elapsed_s ?? scanElapsedS;
+  const candidateView = useDeviceOrder(candidates, status?.current_session_id || null, elapsed);
+  const otherView = useDeviceOrder(otherDevices, status?.current_session_id || null, elapsed);
+  const sortedOtherDevices = otherView.items;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -250,18 +275,34 @@ export const App: React.FC = () => {
         </div>
 
         {/* Scan Controls */}
-        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+          {!isNative && <label className="text-xs font-semibold text-slate-600 flex flex-col gap-1">
+            Scan source
+            <select aria-label="Scan source" value={status?.is_scanning && status.capture_source !== 'demo' ? status.capture_source : captureSource}
+              disabled={scanBusy || status?.is_scanning} onChange={e => setCaptureSource(e.target.value as 'computer' | 'sdr')}
+              className="border border-slate-300 rounded-lg bg-white p-2 disabled:opacity-60">
+              <option value="computer">Computer Bluetooth</option>
+              <option value="sdr">Pluto SDR · channel 37</option>
+            </select>
+          </label>}
+          {!isNative && captureSource === 'sdr' && <label className="text-xs font-semibold text-slate-600 flex flex-col gap-1">
+            Pluto connection
+            <input aria-label="Pluto connection" value={sdrUri} onChange={e => setSdrUri(e.target.value)}
+              disabled={scanBusy || status?.is_scanning} className="border border-slate-300 rounded-lg p-2 w-40" />
+          </label>}
           {!status?.is_scanning ? (
             <>
               <button
                 onClick={() => handleStartScan(false)}
+                disabled={scanBusy}
                 className="flex-1 md:flex-initial px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-all"
               >
                 <Play size={15} />
-                <span>Start BLE Scan</span>
+                <span>{scanBusy ? 'Starting…' : 'Start BLE Scan'}</span>
               </button>
               <button
                 onClick={() => handleStartScan(true)}
+                disabled={scanBusy}
                 className="flex-1 md:flex-initial px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center justify-center gap-1.5 sm:gap-2 transition-all"
               >
                 <Sparkles size={15} />
@@ -280,6 +321,7 @@ export const App: React.FC = () => {
               </div>
               <button
                 onClick={handleStopScan}
+                disabled={scanBusy}
                 className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all shrink-0"
               >
                 <Square size={15} />
@@ -302,6 +344,16 @@ export const App: React.FC = () => {
 
       {/* Main Content Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+        {(scanError || status?.scanner_error) && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {scanError || status?.scanner_error}
+        </div>}
+        {!isNative && (status?.capture_source === 'sdr' || captureSource === 'sdr') &&
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <strong>Pluto SDR · channel 37 · 2402 MHz</strong>
+            <p>Relative power in dBFS, fixed gain 40 dB. Stop other SDR applications before scanning. Stop the scan to change receivers.</p>
+            <p>Valid packets: {status?.capture_health?.packets_crc_ok ?? 0} · Host samples dropped: {status?.capture_health?.host_dropped_samples ?? 0} · Read errors: {status?.capture_health?.read_errors?.length ?? 0}</p>
+            <p>Source sample continuity is not verified. Passive SDR reception may not receive device names available through active Bluetooth scanning.</p>
+          </div>}
         {/* Locating Gauge for selected target (from Candidates or Other Devices) */}
         <LocatingGauge
           signal={selectedDevice?.signal || null}
@@ -360,9 +412,11 @@ export const App: React.FC = () => {
             </div>
 
             {/* List Body */}
+            <TrackerResearchCatalog/>
+            {activeTab !== 'details' && <DeviceListControls view={activeTab === 'others' ? otherView : candidateView} unit={status?.signal_unit || 'dBm'}/>}
             {activeTab === 'candidates' ? (
               <CandidateList
-                candidates={candidates}
+                candidates={candidateView.items}
                 selectedAddress={status?.selected_target_address || null}
                 onSelectCandidate={(addr) => {
                   handleSelectTarget(addr);
@@ -410,7 +464,7 @@ export const App: React.FC = () => {
                                 ? "text-blue-600 bg-blue-100"
                                 : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
                             }`}
-                            title={item.is_pinned ? "Unpin device" : "Pin to top"}
+                            title={item.is_pinned ? "Unpin device" : "Pin for next sort"}
                           >
                             <Pin size={18} />
                           </button>
@@ -444,6 +498,7 @@ export const App: React.FC = () => {
                             </div>
 
                             {/* Liveness & Packet Activity */}
+                            <div className="text-[11px] text-slate-500 mt-1">{item.classification.evidence?.company_names?.join(', ') || 'No advertised company ID'}</div>
                             <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-3">
                               <span>
                                 Activity:{" "}
@@ -467,7 +522,7 @@ export const App: React.FC = () => {
                           <div className="text-left sm:text-right">
                             <div className="text-lg font-black text-slate-800 tracking-tight whitespace-nowrap">
                               {rssi !== null ? `${rssi}` : "--"}{" "}
-                              <span className="text-xs font-semibold text-slate-400">dBm</span>
+                              <span className="text-xs font-semibold text-slate-400">{item.signal.signal_unit || 'dBm'}</span>
                             </div>
                             <div className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
                               {freshness}
@@ -486,7 +541,7 @@ export const App: React.FC = () => {
                             }`}
                           >
                             <Radio size={14} className={isSelected ? "animate-pulse" : ""} />
-                            <span>{isSelected ? "Tracking" : "Track / עקוב"}</span>
+                            <span>{isSelected ? "Tracking" : "Track"}</span>
                           </button>
                         </div>
                       </div>

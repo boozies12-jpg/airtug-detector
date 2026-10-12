@@ -1,0 +1,43 @@
+{
+  "rule_id": "experimental.tile_web",
+  "revision": 1,
+  "schema_version": "1.0.0",
+  "enabled": true,
+  "maturity": "experimental",
+  "kind": "protocol",
+  "description": "Tile advertised service heuristic from AirGuard; model and hardware not verified.",
+  "evidence_references": [
+    {
+      "source": "external_spec",
+      "description": "AirGuard original implementation; reviewed 2026-10-12",
+      "url_or_ref": "https://github.com/seemoo-lab/AirGuard/blob/main/app/src/main/java/de/seemoo/at_tracking_detection/database/models/device/types/Tile.kt"
+    }
+  ],
+  "verification": {
+    "level": "web_reference",
+    "reviewed": "2026-10-12",
+    "note": "No local lab specimen"
+  },
+  "output": {
+    "protocol_family": "Tile",
+    "brand": null,
+    "model": null,
+    "brand_source": null,
+    "status_text": "Possible Tile tracker: web-reference service signature; model unknown; not lab verified",
+    "is_candidate": true,
+    "candidate_group": "possible_tracker"
+  },
+  "conditions": {
+    "all_of": [
+      {
+        "service_uuid": "feed"
+      },
+      {
+        "hex_prefix": {
+          "prefix": "0200",
+          "source": "service_data"
+        }
+      }
+    ]
+  }
+}
