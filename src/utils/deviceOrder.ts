@@ -21,8 +21,8 @@ export function stableAddresses(previous: string[], items: BleDeviceItem[]): str
   return [...previous, ...items.filter(item => !known.has(item.address)).map(item => item.address)];
 }
 
-export function nextAddresses(previous: string[], items: BleDeviceItem[], key: SortKey, elapsed: number, manual: boolean): string[] {
-  return elapsed < 60 && !manual ? sortDevices(items, key).map(x => x.address) : stableAddresses(previous, items);
+export function nextAddresses(previous: string[], items: BleDeviceItem[], key: SortKey): string[] {
+  return previous.length === 0 ? sortDevices(items, key).map(x => x.address) : stableAddresses(previous, items);
 }
 
 export function matchesFilter(item: BleDeviceItem, filter: ListFilter): boolean {

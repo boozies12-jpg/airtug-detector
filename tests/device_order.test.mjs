@@ -22,10 +22,10 @@ test('name, recency, null power and snapshot filters', () => {
   assert(!matchesFilter(devices[0], {query: '', minSignal: '-50', maxAge: ''}));
 });
 
-test('first-minute ordering freezes at 60 seconds and explicit lock can freeze early', () => {
+test('order stays stable from the first update until explicit sorting', () => {
   const items = [device('a', -20), device('b', -80)];
-  assert.deepEqual(nextAddresses(['b','a'], items, 'signal', 59, false), ['a','b']);
-  assert.deepEqual(nextAddresses(['b','a'], items, 'signal', 60, false), ['b','a']);
-  assert.deepEqual(nextAddresses(['b','a'], items, 'signal', 600, false), ['b','a']);
-  assert.deepEqual(nextAddresses(['b','a'], items, 'signal', 10, true), ['b','a']);
+  assert.deepEqual(nextAddresses([], items, 'signal'), ['a','b']);
+  assert.deepEqual(nextAddresses(['b','a'], items, 'signal'), ['b','a']);
+  assert.deepEqual(nextAddresses(['b','a'], [...items, device('c', -10)], 'signal'), ['b','a','c']);
+  assert.deepEqual(sortDevices(items, 'signal').map(x => x.address), ['a','b']);
 });
