@@ -1,0 +1,22 @@
+[Unit]
+Description=BLE POC phone interface and Pluto receiver
+After=network.target user@1000.service
+Wants=user@1000.service
+
+[Service]
+Type=simple
+User=sensorz
+WorkingDirectory=/home/sensorz/ble-poc
+Environment=PYTHONUNBUFFERED=1
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=BLE_WIFI_INTERFACE=wlx90de800f9259
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+ExecStart=/home/sensorz/ble-poc-venv/bin/python -m uvicorn src.api.server:app --host 0.0.0.0 --port 41732
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,151 @@
+# Banana Pi BLE POC deployment
+
+## Installed device
+
+Verified on 2026-10-18: Banana Pi BPI-M5, ARM64, about 4 GB RAM,
+Armbian 24.5.1 Jammy, Python 3.10.12. A Realtek USB Wi-Fi adapter provides
+wireless access. The board performs reception processing and classification;
+the phone is a browser client, not the receiver.
+
+The Pluto is reachable at `ip:10.1.0.1` over the existing Ethernet/fiber link.
+The board retains its original `eth0` configuration, `10.1.0.2/24`.
+The detected SDR reports PlutoSDR Rev.C, Z7010/AD9361 and firmware
+`1.33.7-dirty-v0.33-4-gb912-dirty-2024.01.26_13.31`.
+
+## Using a phone
+
+In the workshop, connect the phone to the same Wi-Fi as the board and open
+`http://192.168.1.74:41732`. This is the commissioning DHCP address and may
+change; `hostname -I` on the board shows its addresses.
+Select Pluto SDR and `ip:10.1.0.1`, then Start BLE Scan.
+Use the browser rather than the separate native Android BLE scanner.
+
+The NetworkManager profile `ble-poc-hotspot` is the next-boot default and provides a standalone
+5 GHz network called `BLE-POC`, without a password as explicitly requested by
+the operator, at `http://192.168.50.1:41732`. The previous protected profile
+is preserved as `ble-poc-hotspot-protected` with autoconnect disabled.
+Activate it from the board console with:
+
+```sh
+nmcli connection up ble-poc-hotspot
+```
+
+Join that Wi-Fi from the phone and accept staying connected without internet.
+This adapter uses either client or access-point mode at a time. Switching
+profiles disconnects an SSH session through the previous Wi-Fi network.
+Return to workshop mode from the console with:
+
+```sh
+nmcli connection up ble-poc-workshop
+```
+
+Workshop autoconnect is disabled; hotspot autoconnect is enabled at priority 50.
+The current workshop connection stays up until explicitly switched or rebooted.
+Startup profile settings have been checked, but physical power-cycle behavior
+has not yet been tested. The operator confirmed successful phone access during
+a three-minute open-hotspot test, without a router or internet. Automatic
+return to the workshop profile was verified afterward. The POC web service has no application authentication;
+the field Wi-Fi is deliberately open. No internet port forwarding was configured
+by this deployment.
+
+## Service and files
+
+### Switching Wi-Fi from the phone
+
+Refresh the application and open the English "Wi-Fi & field mode" panel. It offers
+a return-to-field button, a saved TDCOMM workshop shortcut, and a network-name
+and password form for another open or WPA personal network. Leave the password
+empty for an open network. Internet access is not required.
+
+After requesting a client network, join that same network on the phone and
+open `http://SENS-WA21-398A-0005.local:41732`, then confirm the connection within
+three minutes. Hostname discovery depends on the phone and network; if it does
+not work, allow recovery and reconnect to BLE-POC at the field URL. Without
+confirmation, a systemd user timer returns the board to BLE-POC independently
+of the web application. Switching back to field mode takes about five seconds.
+
+Each boot still defaults to BLE-POC; modes do not alternate across power cycles.
+Client profiles created by the panel have autoconnect disabled. The service
+uses `BLE_WIFI_INTERFACE=wlx90de800f9259` and the sensorz user bus; lingering is
+enabled with `loginctl enable-linger sensorz` so recovery timers do not require
+an interactive login. Passwords are stored by NetworkManager, not in the
+application's state file or response. The feature passed 49 tests on the board
+(Windows: 42 passed, seven native-library tests skipped).
+
+- Application: `/home/sensorz/ble-poc`
+- Isolated environment: `/home/sensorz/ble-poc-venv`
+- Service: `/etc/systemd/system/ble-poc.service`, enabled at boot
+- Logs: `journalctl -u ble-poc`
+- Sessions and capture health: `/home/sensorz/ble-poc/data/`
+- Wi-Fi and Ethernet configuration: NetworkManager
+
+The existing `sensorz_rf_scanner.service` was stopped and disabled to avoid
+two programs controlling the receiver. Its unit and application were preserved.
+Other existing services were not deliberately disabled by this deployment.
+To restore the old scanner, first stop the BLE service:
+
+```sh
+sudo systemctl disable --now ble-poc
+sudo systemctl enable --now sensorz_rf_scanner
+```
+
+## Rebuilding
+
+Build the UI on the development computer with `npm run build:board`. Copy
+`dist-board/` as `dist/` on the board. Also deploy `src/`, `rules/`, `catalog/`
+and `tests/`; the catalog is required at startup. The regular desktop build
+retains its original default source and Pluto URI.
+
+Install `deploy/banana-pi/requirements.txt` in an isolated Python 3.10
+environment. The board uses system `libiio0` 0.23 and `libad9361-0` 0.2.
+The Wi-Fi hotspot additionally needs `dnsmasq-base` (installed from the
+official Ubuntu ARM64 package archive).
+
+Build the optional native filter on the board:
+
+```sh
+cc -O3 -ffp-contract=off -std=c99 -shared -fPIC \
+  src/domain/fir_native.c -o src/domain/libble_fir.so
+OPENBLAS_NUM_THREADS=1 ../ble-poc-venv/bin/python -m pytest tests/ -q
+```
+
+The native library uses ARM NEON for the FIR and exact Hamming-distance
+matching for the BLE access address. Phase is evaluated only around candidate
+packets. The filter uses the same 49 taps and maintains IQ history across blocks,
+resetting on known gaps. Without the library the existing SciPy path remains
+available. Binary libraries and private SSH keys are excluded from Git.
+
+## Receiver limits
+
+This is receive-only legacy BLE 1M on channel 37, not simultaneous coverage
+of all advertising channels. Classification identifies matching formats,
+not a verified physical model. SDR power is uncalibrated dBFS, not meters.
+Host drop/error counters do not prove continuity inside the SDR or transport.
+Check the capture health after deployment and under the intended RF load.
+
+The application explicitly selects logical receive channel 0 (RX1 / first
+receive path). Its I/Q samples are `voltage0` and `voltage1` on the ADC;
+these are not two separate antennas. The UI shows the configured receive path.
+There is no cable-presence detection. R1/R2 labels on a custom enclosure
+must be checked against its actual wiring before treating them as RX1/RX2.
+
+Initial ARM deployment decoded real BLE packets but dropped host samples.
+After optimization, the 60.49-second live run decoded 2,172 CRC-valid packets,
+with zero host drops and zero read errors. Mean decode time was 15.53 ms per
+16.384 ms block; queue high water was 13 of 16 blocks, so workload margin is
+limited and longer field testing remains appropriate. Five candidate addresses
+matched the catalog; this is not a verified count of physical tracking products.
+All 40 board tests passed; Windows passed 33 tests with seven native-library
+tests skipped.
+
+**Performance qualification remains limited:** a subsequent longer operator scan
+did show host drops, despite the successful one-minute test. The additional
+fused ARM FIR build passed 12 focused equivalence/decoder tests, then a fresh
+180.91-second live test decoded 7,622 CRC-valid packets with zero host drops
+and zero read errors. Queue high water was 6/16, with 15.84 ms average decode
+time per block. Five candidate addresses and 18 other addresses were observed.
+The software still lacks hardware continuity counters, and earlier losses plus
+the small processing margin mean it should not be described as lossless or
+fully qualified for every field workload. The latest indicator explicitly
+selects RX1; physical enclosure socket wiring has not been verified.
+See [commissioning report](banana-pi-validation-2026-10-18.json).

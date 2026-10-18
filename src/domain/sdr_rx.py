@@ -13,6 +13,16 @@ FREQUENCIES = {37: 2402000000, 38: 2426000000, 39: 2480000000}
 AA = np.unpackbits(np.frombuffer(bytes.fromhex('d6be898e'), dtype=np.uint8), bitorder='little')
 
 
+def positive_phase(values):
+    """Equivalent to angle(values) > 0, without evaluating atan2 per sample."""
+    imag, real = values.imag, values.real
+    result = (imag > 0) | ((imag == 0) & np.signbit(real) & ~np.signbit(imag))
+    unusual = ~np.isfinite(real) | ~np.isfinite(imag)
+    if np.any(unusual):
+        result[unusual] = np.angle(values[unusual]) > 0
+    return result
+
+
 def crc24(data):
     state = 0xAAAAAA  # reflected advertising CRCInit 0x555555
     for byte in data:
@@ -61,6 +71,11 @@ class Decoder:
         self.last_packet = -100000
         self.candidates = 0
         self.crc_fail = 0
+        from .fir_native import NativeAccessMatcher
+        try:
+            self.matcher = NativeAccessMatcher(AA)
+        except (OSError, AttributeError):
+            self.matcher = None
 
     def feed(self, samples, start):
         if start != self.end:
@@ -71,25 +86,32 @@ class Decoder:
         self.tail = x[-(400 * self.sps + 8):].copy()
         if len(x) < 100 * self.sps:
             return []
-        freq = np.angle(x[1:] * np.conj(x[:-1]))
-        pattern = AA.astype(np.int16) * 2 - 1
+        differential = x[1:] * np.conj(x[:-1])
+        positive = positive_phase(differential)
+        # All 32-term +/-1 sums are exact in float32; this uses faster SIMD kernels.
+        pattern = AA.astype(np.float32) * 2 - 1
         hits = []
-        for phase in range(self.sps):
-            symbols = freq[phase::self.sps]
-            signs = (symbols > 0).astype(np.int16) * 2 - 1
-            scores = np.correlate(signs, pattern, mode='valid')
-            for pos in np.flatnonzero(scores >= 28):
-                hits.append((int(pos) * self.sps + phase, symbols, int(pos)))
+        if self.matcher is not None:
+            hits = self.matcher.find(positive, self.sps)
+        else:
+            for phase in range(self.sps):
+                signs = positive[phase::self.sps].astype(np.float32) * 2 - 1
+                scores = np.correlate(signs, pattern, mode='valid')
+                for pos in np.flatnonzero(scores >= 28):
+                    hits.append(int(pos) * self.sps + phase)
         packets = []
-        for sample, symbols, pos in sorted(hits, key=lambda h: h[0]):
+        for sample in sorted(hits):
             absolute = base + sample
             if absolute <= self.last_packet + 8 * self.sps:
                 continue
-            if pos + 48 > len(symbols):
+            # Evaluate phase only around access-address candidates, retaining
+            # the original frequency-offset estimate and payload decisions.
+            symbols = np.angle(differential[sample:sample + (32 + 42 * 8) * self.sps:self.sps])
+            if len(symbols) < 48:
                 continue
-            aa_symbols = symbols[pos:pos + 32]
+            aa_symbols = symbols[:32]
             offset = (np.mean(aa_symbols[AA == 1]) + np.mean(aa_symbols[AA == 0])) / 2
-            bits = (symbols[pos + 32:pos + 32 + 42 * 8] > offset).astype(np.uint8)
+            bits = (symbols[32:32 + 42 * 8] > offset).astype(np.uint8)
             plain = whiten(bits, self.channel)
             header = np.packbits(plain[:16], bitorder='little').tobytes()
             kind, length = header[0] & 15, header[1] & 63
@@ -151,6 +173,8 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     output.mkdir(parents=True, exist_ok=False)
     sdr = load_pluto(args.uri, args.dll_dir)
     sdr._ctx.set_timeout(3000)
+    # One complex receive path: logical channel 0 (RX1), I and Q together.
+    sdr.rx_enabled_channels = [0]
     sdr.sample_rate = args.rate
     sdr.rx_rf_bandwidth = 2000000
     sdr.rx_lo = FREQUENCIES[args.channel]
@@ -165,12 +189,14 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
         decoder = Decoder(actual_rate, args.channel)
     q = queue.Queue(maxsize=16)
     stop = stop_event if stop_event is not None else threading.Event()
-    stats = {'received_samples': 0, 'host_dropped_samples': 0, 'queue_high_water': 0,
+    stats = {'rx_channel_index': 0, 'rx_channel_label': 'RX1 (first receive path)',
+             'received_samples': 0, 'host_dropped_samples': 0, 'queue_high_water': 0,
              'read_errors': [], 'packets_crc_ok': 0, 'processed_blocks': 0,
              'decode_seconds': 0., 'decode_max_seconds': 0.,
              'max_read_seconds': 0., 'max_queue_age_seconds': 0.,
              'source_continuity': 'UNVERIFIED: no source sample counter in IQ stream'}
     metadata = vars(args) | {'actual_rate': actual_rate, 'actual_lo': int(sdr.rx_lo),
+                            'rx_enabled_channels': list(sdr.rx_enabled_channels),
                             'actual_gain': float(sdr.rx_hardwaregain_chan0),
                             'firmware': sdr._ctx.attrs.get('fw_version', 'unknown'),
                             'source': 'Pluto RX only', 'decoder': type(decoder).__name__,

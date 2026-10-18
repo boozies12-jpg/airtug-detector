@@ -96,9 +96,9 @@ class ClassifierEngine:
         selectors = cond.get('all_of', [cond])
         services = {x['service_uuid'].lower() for x in selectors if 'service_uuid' in x}
         companies = {x['company_id'].lower() for x in selectors if 'company_id' in x}
-        if len(services) == 1:
+        if len(services) == 1 and any(k not in services for k in record.service_data):
             record = record.model_copy(update={'service_data': {k: v for k, v in record.service_data.items() if k in services}})
-        if len(companies) == 1:
+        if len(companies) == 1 and any(k not in companies for k in record.manufacturer_data):
             record = record.model_copy(update={'manufacturer_data': {k: v for k, v in record.manufacturer_data.items() if k in companies}})
         if "all_of" in cond:
             return all(self._eval_condition(sub, record, matched_ids) for sub in cond["all_of"])

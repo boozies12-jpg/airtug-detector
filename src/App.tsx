@@ -4,6 +4,7 @@ import { CandidateList } from './components/CandidateList';
 import { DeviceListControls, useDeviceOrder } from './components/DeviceListControls';
 import { TrackerResearchCatalog } from './components/IdentityEvidence';
 import { CandidateDetail } from './components/CandidateDetail';
+import { WifiSettings } from './components/WifiSettings';
 import { BleDeviceItem, AppStatus } from './types';
 import { audioFeedback } from './utils/audio';
 import { mobileBleManager } from './mobile/mobileScanner';
@@ -28,12 +29,28 @@ export const App: React.FC = () => {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [sessionName] = useState('Search Area 1');
   const [scanElapsedS, setScanElapsedS] = useState(0);
-  const [captureSource, setCaptureSource] = useState<'computer' | 'sdr'>('computer');
-  const [sdrUri, setSdrUri] = useState('ip:192.168.2.1');
+  const defaultCaptureSource = import.meta.env.VITE_DEFAULT_CAPTURE_SOURCE === 'sdr' ? 'sdr' : 'computer';
+  const defaultSdrUri = import.meta.env.VITE_DEFAULT_SDR_URI || 'ip:192.168.2.1';
+  const [captureSource, setCaptureSource] = useState<'computer' | 'sdr'>(() => {
+    try { return (localStorage.getItem('ble.captureSource') || defaultCaptureSource) === 'sdr' ? 'sdr' : 'computer'; }
+    catch { return defaultCaptureSource; }
+  });
+  const [sdrUri, setSdrUri] = useState(() => {
+    try { return localStorage.getItem('ble.sdrUri') || defaultSdrUri; }
+    catch { return defaultSdrUri; }
+  });
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState('');
 
   const socketRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (isNative) return;
+    try {
+      localStorage.setItem('ble.captureSource', captureSource);
+      localStorage.setItem('ble.sdrUri', sdrUri);
+    } catch { /* Scanning also works when browser storage is unavailable. */ }
+  }, [isNative, captureSource, sdrUri]);
 
   // Poll API status & candidate lists periodically (for desktop/web)
   const refreshData = async () => {
@@ -45,6 +62,9 @@ export const App: React.FC = () => {
         fetch('/api/other-devices').then((r) => r.json())
       ]);
       setStatus(resStatus);
+      if (resStatus.is_scanning && ['computer', 'sdr'].includes(resStatus.capture_source)) {
+        setCaptureSource(resStatus.capture_source);
+      }
       setCandidates(resCand);
       setOtherDevices(resOthers);
     } catch {
@@ -344,12 +364,14 @@ export const App: React.FC = () => {
 
       {/* Main Content Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+        {!isNative && <WifiSettings />}
         {(scanError || status?.scanner_error) && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           {scanError || status?.scanner_error}
         </div>}
         {!isNative && (status?.capture_source === 'sdr' || captureSource === 'sdr') &&
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             <strong>Pluto SDR · channel 37 · 2402 MHz</strong>
+            <p>Receiver input: {status?.capture_health?.rx_channel_label || 'RX1 (first receive path)'}. Antenna or cable connection is not detected by software.</p>
             <p>Relative power in dBFS, fixed gain 40 dB. Stop other SDR applications before scanning. Stop the scan to change receivers.</p>
             <p>Valid packets: {status?.capture_health?.packets_crc_ok ?? 0} · Host samples dropped: {status?.capture_health?.host_dropped_samples ?? 0} · Read errors: {status?.capture_health?.read_errors?.length ?? 0}</p>
             <p>Source sample continuity is not verified. Passive SDR reception may not receive device names available through active Bluetooth scanning.</p>

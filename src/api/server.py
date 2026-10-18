@@ -2,22 +2,25 @@ import os
 import asyncio
 import time
 from typing import List, Dict, Any, Optional, Literal
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response, PlainTextResponse, FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, SecretStr
+from urllib.parse import urlsplit
 
 from ..domain.classifier import RuleCatalog, ClassifierEngine
 from ..domain.signal_processor import SignalProcessor
 from ..domain.session_manager import SessionManager
 from ..domain.acquisition import AcquisitionOrchestrator
 from ..domain.models import CheckpointRecord, CandidateGroup
+from ..domain.wifi_control import WifiControl
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RULES_DIR = os.path.join(BASE_DIR, "rules")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DIST_DIR = os.path.join(BASE_DIR, "dist")
+wifi = WifiControl(os.environ['BLE_WIFI_INTERFACE'], os.path.join(DATA_DIR, 'wifi-control.json')) if os.environ.get('BLE_WIFI_INTERFACE') else None
 
 # Initialize Domain Core
 catalog = RuleCatalog(RULES_DIR)
@@ -82,6 +85,61 @@ async def startup_event():
     loop = asyncio.get_running_loop()
 
 # API Endpoints
+class WifiConnectRequest(BaseModel):
+    ssid: str = Field(default='', max_length=128)
+    password: SecretStr = SecretStr('')
+    saved_workshop: bool = False
+
+
+def require_local_wifi_request(request: Request):
+    if wifi is None:
+        raise HTTPException(404, 'Wi-Fi control is available only on the configured board.')
+    origin = request.headers.get('origin')
+    if (origin and urlsplit(origin).netloc != request.headers.get('host')) or request.headers.get('sec-fetch-site') == 'cross-site':
+        raise HTTPException(403, 'Open Wi-Fi settings directly on the board interface.')
+
+
+@app.get('/api/network')
+async def network_status():
+    if wifi is None:
+        return {'enabled': False}
+    try:
+        return await wifi.status()
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc))
+
+
+@app.post('/api/network/connect')
+async def network_connect(body: WifiConnectRequest, request: Request):
+    require_local_wifi_request(request)
+    try:
+        return await wifi.connect(body.ssid, body.password.get_secret_value(), body.saved_workshop)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc))
+
+
+@app.post('/api/network/confirm')
+async def network_confirm(request: Request):
+    require_local_wifi_request(request)
+    try:
+        return await wifi.confirm()
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc))
+
+
+@app.post('/api/network/field')
+async def network_field(request: Request):
+    require_local_wifi_request(request)
+    try:
+        return await wifi.field()
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc))
+
+
 class StartScanRequest(BaseModel):
     session_name: Optional[str] = ""
     demo_mode: bool = False

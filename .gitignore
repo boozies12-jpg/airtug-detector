@@ -8,9 +8,13 @@ data/*.jpg
 .venv/
 *.log
 data/backend-check.json
+data/wifi-control.json
+data/wifi-control.tmp
 dist
+dist-board/
 __pycache__
 *.pyc
+*.so
 .pytest_cache
 data/sessions/*
 !data/sessions/.gitkeep

@@ -21,6 +21,11 @@ class FilteredDecoder:
         self.taps = channel_taps()
         self.delay = (len(self.taps) - 1) // 2
         self.state = np.zeros(len(self.taps) - 1, np.complex64)
+        from .fir_native import NativeFir
+        try:
+            self.native = NativeFir(self.taps)
+        except OSError:
+            self.native = None
         self.raw_tail = np.empty(0, np.complex64)
         self.end = 0
 
@@ -31,12 +36,17 @@ class FilteredDecoder:
     def feed(self, samples, start):
         if start != self.end:
             self.state.fill(0)
+            if self.native is not None:
+                self.native.reset()
             self.raw_tail = np.empty(0, np.complex64)
         raw = np.concatenate((self.raw_tail, samples))
         base = start - len(self.raw_tail)
         self.end = start + len(samples)
         self.raw_tail = raw[-(400 * self.decoder.sps + 8 + self.delay):].copy()
-        filtered, self.state = lfilter(self.taps, np.array([1.], np.float32), samples, zi=self.state)
+        if self.native is not None:
+            filtered = self.native.feed(samples)
+        else:
+            filtered, self.state = lfilter(self.taps, np.array([1.], np.float32), samples, zi=self.state)
         packets = self.decoder.feed(filtered, start)
         result = []
         for packet in packets:
