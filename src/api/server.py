@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional, Literal
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import Response, PlainTextResponse, FileResponse
+from fastapi.responses import Response, PlainTextResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, Field, SecretStr
 from urllib.parse import urlsplit
 
@@ -214,7 +214,7 @@ async def get_candidates(compact: bool = False):
                 "is_found": addr in orchestrator.found_addresses,
                 "found_notes": orchestrator.found_addresses.get(addr, {}).get("notes")
             })
-    return candidates
+    return JSONResponse(content=candidates)
 
 @app.get("/api/other-devices")
 async def get_other_devices(compact: bool = False):
@@ -234,7 +234,7 @@ async def get_other_devices(compact: bool = False):
                 "is_found": addr in orchestrator.found_addresses,
                 "found_notes": orchestrator.found_addresses.get(addr, {}).get("notes")
             })
-    return others
+    return JSONResponse(content=others)
 
 class TargetSelectRequest(BaseModel):
     address: Optional[str] = None

@@ -57,3 +57,35 @@ def test_filter_rejects_bad_crc_and_does_not_bridge_known_loss():
     decoder = FilteredDecoder()
     assert not decoder.feed(x[:400], 0)
     assert not decoder.feed(x[450:], 450)
+
+
+@pytest.mark.parametrize('phase', [0, 1])
+@pytest.mark.parametrize('block_size', [257, 65536])
+def test_two_msps_filtered_packet_and_raw_power(phase, block_size):
+    x, pdu = waveform()
+    x = x[phase::2].copy()
+    decoder = FilteredDecoder(2000000)
+    packets = []
+    for start in range(0, len(x), block_size):
+        packets += decoder.feed(x[start:start + block_size], start)
+    assert len(packets) == 1 and packets[0]['pdu_hex'] == pdu
+    first = packets[0]['sample_index_host']
+    length = (32 + (len(bytes.fromhex(pdu)) + 3) * 8) * 2
+    expected = 10 * np.log10(np.mean(np.abs(x[first:first + length]) ** 2))
+    assert packets[0]['power_dbfs'] == pytest.approx(expected, abs=1e-5)
+
+
+@pytest.mark.parametrize('block_size', [257, 65536])
+def test_three_msps_filtered_packet_across_boundaries(block_size):
+    from scipy.signal import resample_poly
+    x, pdu = waveform()
+    x = resample_poly(x, 3, 4).astype(np.complex64)
+    decoder = FilteredDecoder(3000000)
+    packets = []
+    for start in range(0, len(x), block_size):
+        packets += decoder.feed(x[start:start + block_size], start)
+    assert len(packets) == 1 and packets[0]['pdu_hex'] == pdu
+    first = packets[0]['sample_index_host']
+    length = (32 + (len(bytes.fromhex(pdu)) + 3) * 8) * 3
+    expected = 10 * np.log10(np.mean(np.abs(x[first:first + length]) ** 2))
+    assert packets[0]['power_dbfs'] == pytest.approx(expected, abs=1e-5)

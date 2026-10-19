@@ -1,24 +1,25 @@
 """BLE channel FIR; equivalent design to GNU Radio firdes.low_pass.
 
-4 MSPS, 650 kHz cutoff, 200 kHz transition, 49-tap Hamming window.
+2/3/4 MSPS, 650 kHz cutoff, 25/37/49-tap Hamming window (6 us group delay).
 The decoder uses filtered IQ, but packet power is measured on the original IQ.
 """
 import numpy as np
 from scipy.signal import lfilter
 
 
-def channel_taps():
-    taps = np.sinc(2 * 650000 / 4000000 * (np.arange(49) - 24)) * np.hamming(49)
+def channel_taps(rate=4000000):
+    count = 12 * (rate // 1000000) + 1
+    taps = np.sinc(2 * 650000 / rate * (np.arange(count) - (count - 1) // 2)) * np.hamming(count)
     return (taps / taps.sum()).astype(np.float32)
 
 
 class FilteredDecoder:
     def __init__(self, rate=4000000, channel=37):
         from .sdr_rx import Decoder
-        if rate != 4000000:
-            raise ValueError('The validated FIR configuration requires 4 MSPS')
-        self.decoder = Decoder(rate, channel)
-        self.taps = channel_taps()
+        if rate not in (2000000, 3000000, 4000000):
+            raise ValueError('The validated FIR configuration requires 2, 3 or 4 MSPS')
+        self.decoder = Decoder(rate, channel, measure_power=False)
+        self.taps = channel_taps(rate)
         self.delay = (len(self.taps) - 1) // 2
         self.state = np.zeros(len(self.taps) - 1, np.complex64)
         from .fir_native import NativeFir
@@ -62,7 +63,7 @@ class FilteredDecoder:
                           power_dbfs=float(10 * np.log10(max(float(np.mean(np.abs(window) ** 2)), 1e-20))),
                           clipped_fraction=float(np.mean((np.abs(window.real) >= 2047/2048) |
                                                          (np.abs(window.imag) >= 2047/2048))),
-                          demod_frontend='49-tap Hamming FIR; cutoff 650 kHz; raw-IQ power',
+                          demod_frontend=f'{len(self.taps)}-tap Hamming FIR; cutoff 650 kHz; raw-IQ power',
                           filter_group_delay_samples=self.delay)
             result.append(packet)
         return result

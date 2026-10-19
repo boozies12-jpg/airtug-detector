@@ -105,13 +105,13 @@ Build the optional native filter on the board:
 
 ```sh
 cc -O3 -ffp-contract=off -std=c99 -shared -fPIC \
-  src/domain/fir_native.c -o src/domain/libble_fir.so
+  src/domain/fir_native.c -lm -o src/domain/libble_fir.so
 OPENBLAS_NUM_THREADS=1 ../ble-poc-venv/bin/python -m pytest tests/ -q
 ```
 
 The native library uses ARM NEON for the FIR and exact Hamming-distance
 matching for the BLE access address. Phase is evaluated only around candidate
-packets. The filter uses the same 49 taps and maintains IQ history across blocks,
+packets. The filter uses rate-dependent taps (49 at 4 MSPS) and maintains IQ history across blocks,
 resetting on known gaps. Without the library the existing SciPy path remains
 available. Binary libraries and private SSH keys are excluded from Git.
 
@@ -149,3 +149,50 @@ the small processing margin mean it should not be described as lossless or
 fully qualified for every field workload. The latest indicator explicitly
 selects RX1; physical enclosure socket wiring has not been verified.
 See [commissioning report](banana-pi-validation-2026-10-18.json).
+
+
+## Receiver processing update (2026-10-19)
+
+The board service now selects `BLE_SDR_SAMPLE_RATE=2000000`; the desktop default
+remains 4 MSPS. The RF channel remains 37 and analog bandwidth remains 2 MHz.
+The filtered decoder supports 2/3/4 MSPS with 25/37/49-tap Hamming filters,
+650 kHz cutoff and 6 microsecond group delay. This changes sampling density,
+not the number of advertising channels covered. Set the environment variable
+back to 4000000 and restart the service to restore the previous board rate.
+
+CRC uses an equivalent byte lookup table; whitening masks are cached; ARM
+phase decisions use an optional native implementation with nonfinite handling.
+Filtered reception measures packet power only on original IQ, avoiding the
+previous duplicate calculation. Tests retain the Python fallback paths.
+
+On one saved 4 MSPS recording, the optimized 4 MSPS decoder produced exactly
+the same 363 packets and 302 CRC rejections, reducing replay time from 1.97 s
+to 1.21 s. Digital resampling of the same recording to 3 MSPS yielded 364
+packets / 48 addresses; 2 MSPS yielded 357 packets / 47 addresses versus
+363 / 48 at 4 MSPS. These are limited replay results, not a sensitivity
+calibration: lower sampling can change which marginal packets decode.
+Three MSPS still dropped samples during the full application workload.
+
+
+The board also sets `BLE_SDR_QUEUE_BLOCKS=64` (about 32 MiB of complex IQ,
+2.1 seconds capacity at 2 MSPS) to absorb brief scheduling stalls. This does
+not fix sustained overload by itself. Device-list endpoints return their
+already serialized payloads directly as JSON, avoiding redundant recursive
+encoding while the decoder is active.
+
+The final three-minute full-application test captured 52,687 CRC-valid packets
+with zero host-dropped samples and no read errors. Queue high water was 8/64,
+maximum queue age 238 ms, and no blocks remained at shutdown. Mean decoding
+took 19.11 ms per 32.768 ms block. Median HTTP times over workshop Wi-Fi were
+41 ms for status, 56 ms for candidates and 180 ms for other devices; their
+95th percentiles were approximately 128, 200 and 245 ms. These are server
+request measurements, not phone rendering measurements or a field-hotspot test.
+Windows tests passed 52 with seven native tests skipped; ARM passed 59 before
+the final queue-capacity and JSON-response changes. The final deployed build
+was exercised by the live test. The scan was stopped afterward.
+
+Two MSPS is a measured compromise: the replay above lost six packets net and
+one address compared with 4 MSPS, while higher rates still overloaded under
+live application traffic. No hardware continuity counter is available, and
+longer runs in the intended RF environment remain necessary for qualification.
+See [performance report](banana-pi-performance-2026-10-19.json).

@@ -356,6 +356,7 @@ export const App: React.FC = () => {
         {!isNative && (status?.capture_source === 'sdr' || captureSource === 'sdr') &&
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             <strong>Pluto SDR · channel 37 · 2402 MHz</strong>
+            {status?.capture_health?.sample_rate && <p>Sampling: {status.capture_health.sample_rate / 1000000} MSPS / RF bandwidth: {(status.capture_health.rf_bandwidth || 0) / 1000000} MHz</p>}
             <p>Receiver input: {status?.capture_health?.rx_channel_label || 'RX1 (first receive path)'}. Antenna or cable connection is not detected by software.</p>
             <p>Relative power in dBFS, fixed gain 40 dB. Stop other SDR applications before scanning. Stop the scan to change receivers.</p>
             <p>Valid packets: {status?.capture_health?.packets_crc_ok ?? 0} · Host samples dropped: {status?.capture_health?.host_dropped_samples ?? 0} · Read errors: {status?.capture_health?.read_errors?.length ?? 0}</p>

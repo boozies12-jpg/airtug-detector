@@ -3,6 +3,19 @@
  * Separate input/output buffers are required. No radio/device access. */
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
+
+void ble_positive_phase(const float *input, uint8_t *output, size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        float r = input[2*i], q = input[2*i+1];
+        if (!isfinite(r) || !isfinite(q)) {
+            output[i] = atan2f(q, r) > 0;
+            continue;
+        }
+        output[i] = !isnan(r) && !isnan(q) &&
+            (q > 0 || (q == 0 && signbit(r) && !signbit(q)));
+    }
+}
 #ifdef __aarch64__
 #include <arm_neon.h>
 #endif

@@ -28,6 +28,8 @@ def main():
         print(json.dumps({'event': kind, 'data': value}), flush=True)
     try:
         receive(['--uri', args.uri, '--dll-dir', dll, '--seconds', '86400',
+                 '--rate', os.environ.get('BLE_SDR_SAMPLE_RATE', '4000000'),
+                 '--queue-blocks', os.environ.get('BLE_SDR_QUEUE_BLOCKS', '16'),
                  '--output', str(root / 'data/sdr-captures')],
                 on_packet=lambda value: emit('packet', value),
                 on_health=lambda value: emit('health', value), stop_event=stop)

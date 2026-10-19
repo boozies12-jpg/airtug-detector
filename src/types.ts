@@ -41,7 +41,7 @@ export interface AppStatus {
   capture_source?: 'computer' | 'sdr' | 'demo';
   signal_unit?: 'dBm' | 'dBFS';
   scanner_error?: string | null;
-  capture_health?: { rx_channel_index?: number; rx_channel_label?: string; packets_crc_ok?: number; host_dropped_samples?: number; queue_high_water?: number; read_errors?: string[]; source_continuity?: string };
+  capture_health?: { sample_rate?: number; rf_bandwidth?: number; rx_channel_index?: number; rx_channel_label?: string; packets_crc_ok?: number; host_dropped_samples?: number; queue_high_water?: number; read_errors?: string[]; source_continuity?: string };
   is_scanning: boolean;
   is_demo: boolean;
   current_session_id: string | null;

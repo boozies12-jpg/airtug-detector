@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-19",
+  "configuration": {
+    "board": "Banana Pi M5",
+    "channel": 37,
+    "phy": "legacy BLE 1M",
+    "filter_enabled": true,
+    "sample_rate": 2000000,
+    "rf_bandwidth": 2000000,
+    "queue_blocks": 64
+  },
+  "method": "Three-minute real SDR scan with concurrent status, candidates and other-devices requests from the development PC over workshop Wi-Fi. Final health includes shutdown.",
+  "health": {
+    "queue_capacity": 64,
+    "sample_rate": 2000000,
+    "rf_bandwidth": 2000000,
+    "rx_channel_index": 0,
+    "rx_channel_label": "RX1 (first receive path)",
+    "received_samples": 363855872,
+    "host_dropped_samples": 0,
+    "queue_high_water": 8,
+    "read_errors": [],
+    "packets_crc_ok": 52687,
+    "processed_blocks": 5552,
+    "decode_seconds": 106.08329550895542,
+    "decode_max_seconds": 0.15418894100002944,
+    "max_read_seconds": 0.16252191999956267,
+    "max_queue_age_seconds": 0.2379623629994967,
+    "source_continuity": "UNVERIFIED: no source sample counter in IQ stream",
+    "capture_thread_stopped": true,
+    "queued_blocks_at_stop": 0,
+    "wall_seconds": 182.01817885800028,
+    "crc_failed_candidates": 28117,
+    "block_duration_seconds": 0.032768,
+    "mean_decode_seconds": 0.01910722181357266,
+    "stream_test_passed": true
+  },
+  "http_latency": {
+    "/api/status": {
+      "requests": 151,
+      "median_ms": 40.7,
+      "p95_ms": 127.6,
+      "max_ms": 457.9
+    },
+    "/api/candidates?compact=true": {
+      "requests": 151,
+      "median_ms": 56.3,
+      "p95_ms": 200.0,
+      "max_ms": 496.9
+    },
+    "/api/other-devices?compact=true": {
+      "requests": 151,
+      "median_ms": 179.9,
+      "p95_ms": 244.9,
+      "max_ms": 625.2
+    }
+  },
+  "scanner_stopped": true,
+  "replay": {
+    "original_4msps_seconds": 1.9705,
+    "optimized_4msps_seconds": 1.208,
+    "identical_4msps_packet_dicts": true,
+    "rates": [
+      {
+        "msps": 4,
+        "packets": 363,
+        "addresses": 48
+      },
+      {
+        "msps": 3,
+        "packets": 364,
+        "addresses": 48
+      },
+      {
+        "msps": 2,
+        "packets": 357,
+        "addresses": 47
+      }
+    ]
+  },
+  "tests": {
+    "windows_passed": 52,
+    "windows_skipped": 7,
+    "arm_passed_before_final_queue_and_json_changes": 59
+  },
+  "limitations": [
+    "No hardware sample counter: source continuity is unverified.",
+    "Three minutes on workshop Wi-Fi does not qualify every field workload or phone rendering latency.",
+    "Resampled replay shows a small decoding difference at 2 MSPS; identical sensitivity is not claimed.",
+    "Only channel 37 legacy BLE 1M is observed."
+  ]
+}

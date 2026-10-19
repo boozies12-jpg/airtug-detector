@@ -1,4 +1,5 @@
 """Receive-only, single primary channel BLE 1M prototype. No TX calls."""
+from functools import lru_cache
 import argparse
 import json
 import os
@@ -8,6 +9,12 @@ import threading
 import time
 
 import numpy as np
+from .fir_native import NativePhase
+
+try:
+    _phase_accelerator = NativePhase()
+except (OSError, AttributeError):
+    _phase_accelerator = None
 
 FREQUENCIES = {37: 2402000000, 38: 2426000000, 39: 2480000000}
 AA = np.unpackbits(np.frombuffer(bytes.fromhex('d6be898e'), dtype=np.uint8), bitorder='little')
@@ -15,6 +22,8 @@ AA = np.unpackbits(np.frombuffer(bytes.fromhex('d6be898e'), dtype=np.uint8), bit
 
 def positive_phase(values):
     """Equivalent to angle(values) > 0, without evaluating atan2 per sample."""
+    if _phase_accelerator is not None and values.dtype == np.complex64 and values.ndim == 1:
+        return _phase_accelerator.decide(values)
     imag, real = values.imag, values.real
     result = (imag > 0) | ((imag == 0) & np.signbit(real) & ~np.signbit(imag))
     unusual = ~np.isfinite(real) | ~np.isfinite(imag)
@@ -23,27 +32,39 @@ def positive_phase(values):
     return result
 
 
+def _crc_entry(value):
+    for _ in range(8):
+        value = (value >> 1) ^ (0xDA6000 if value & 1 else 0)
+    return value
+
+
+_CRC_TABLE = tuple(_crc_entry(value) for value in range(256))
+
+
 def crc24(data):
     state = 0xAAAAAA  # reflected advertising CRCInit 0x555555
     for byte in data:
-        for bit in range(8):
-            feedback = (state ^ (byte >> bit)) & 1
-            state >>= 1
-            if feedback:
-                state ^= 0xDA6000
+        state = (state >> 8) ^ _CRC_TABLE[(state ^ byte) & 255]
     return state.to_bytes(3, 'little')
 
 
-def whiten(bits, channel):
+@lru_cache(maxsize=128)
+def _whitening_mask(channel, count):
     state = channel | 0x40
-    out = np.array(bits, dtype=np.uint8, copy=True)
-    for i in range(len(out)):
+    mask = np.empty(count, dtype=np.uint8)
+    for i in range(count):
         feedback = state & 1
-        out[i] ^= feedback
+        mask[i] = feedback
         state >>= 1
         if feedback:
             state ^= 0x44
-    return out
+    mask.flags.writeable = False
+    return mask
+
+
+def whiten(bits, channel):
+    return np.bitwise_xor(np.asarray(bits, dtype=np.uint8),
+                          _whitening_mask(channel, len(bits)))
 
 
 def ad_fields(data):
@@ -61,11 +82,12 @@ def ad_fields(data):
 
 
 class Decoder:
-    def __init__(self, rate=4000000, channel=37):
+    def __init__(self, rate=4000000, channel=37, measure_power=True):
         if rate % 1000000 or rate < 2000000:
             raise ValueError('Use an integer 2 or more samples per BLE 1M symbol')
         self.sps = rate // 1000000
         self.channel = channel
+        self.measure_power = measure_power
         self.tail = np.empty(0, np.complex64)
         self.end = 0
         self.last_packet = -100000
@@ -128,14 +150,14 @@ class Decoder:
                 continue
             self.last_packet = absolute
             window = x[sample:sample + (32 + count * 8) * self.sps]
-            power = float(np.mean(np.abs(window) ** 2))
+            power = float(np.mean(np.abs(window) ** 2)) if self.measure_power else 1.0
             packet = {'sample_index_host': absolute, 'channel': self.channel,
                       'phy': 'LE1M', 'pdu_type': kind, 'crc_ok': True,
                       'pdu_hex': raw[:-3].hex(), 'crc_hex': raw[-3:].hex(),
                       'power_dbfs': float(10 * np.log10(max(power, 1e-20))),
                       'power_reference': 'complex power / (2048 squared); uncalibrated',
                       'clipped_fraction': float(np.mean((np.abs(window.real) >= 2047/2048) |
-                                                       (np.abs(window.imag) >= 2047/2048)))}
+                                                       (np.abs(window.imag) >= 2047/2048))) if self.measure_power else 0.0}
             if kind in (0, 2, 4, 6):
                 packet['address'] = ':'.join(f'{b:02X}' for b in raw[2:8][::-1])
                 packet['address_type'] = ('public' if not raw[0] & 0x40 else
@@ -166,6 +188,7 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     p.add_argument('--gain', type=int, default=40)
     p.add_argument('--seconds', type=float, default=30)
     p.add_argument('--buffer', type=int, default=65536)
+    p.add_argument('--queue-blocks', type=int, choices=(16, 32, 64), default=16)
     p.add_argument('--output', default='runs')
     p.add_argument('--no-prefilter', action='store_true', help='Use the original unfiltered decoder for comparison')
     args = p.parse_args(argv)
@@ -182,14 +205,14 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     sdr.rx_hardwaregain_chan0 = args.gain
     sdr.rx_buffer_size = args.buffer
     actual_rate = int(sdr.sample_rate)
-    if actual_rate == 4000000 and not args.no_prefilter:
+    if actual_rate in (2000000, 3000000, 4000000) and not args.no_prefilter:
         from src.domain.ble_filter import FilteredDecoder
         decoder = FilteredDecoder(actual_rate, args.channel)
     else:
         decoder = Decoder(actual_rate, args.channel)
-    q = queue.Queue(maxsize=16)
+    q = queue.Queue(maxsize=args.queue_blocks)
     stop = stop_event if stop_event is not None else threading.Event()
-    stats = {'rx_channel_index': 0, 'rx_channel_label': 'RX1 (first receive path)',
+    stats = {'queue_capacity': args.queue_blocks, 'sample_rate': actual_rate, 'rf_bandwidth': int(sdr.rx_rf_bandwidth), 'rx_channel_index': 0, 'rx_channel_label': 'RX1 (first receive path)',
              'received_samples': 0, 'host_dropped_samples': 0, 'queue_high_water': 0,
              'read_errors': [], 'packets_crc_ok': 0, 'processed_blocks': 0,
              'decode_seconds': 0., 'decode_max_seconds': 0.,

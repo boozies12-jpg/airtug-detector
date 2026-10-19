@@ -4,6 +4,22 @@ from pathlib import Path
 import numpy as np
 
 
+class NativePhase:
+    def __init__(self):
+        self.library = ctypes.CDLL(str(Path(__file__).with_name('libble_fir.so')))
+        self.run = self.library.ble_positive_phase
+        self.run.argtypes = [np.ctypeslib.ndpointer(dtype=np.float32, ndim=1, flags='C_CONTIGUOUS'),
+                             np.ctypeslib.ndpointer(dtype=np.uint8, ndim=1, flags='C_CONTIGUOUS'),
+                             ctypes.c_size_t]
+        self.run.restype = None
+
+    def decide(self, values):
+        values = np.ascontiguousarray(values, dtype=np.complex64)
+        out = np.empty(len(values), dtype=np.uint8)
+        self.run(values.view(np.float32), out, len(values))
+        return out.view(np.bool_)
+
+
 class NativeFir:
     def __init__(self, taps):
         self.library = ctypes.CDLL(str(Path(__file__).with_name('libble_fir.so')))
