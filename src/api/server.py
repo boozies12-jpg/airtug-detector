@@ -197,14 +197,14 @@ async def get_status():
     }
 
 @app.get("/api/candidates")
-async def get_candidates():
+async def get_candidates(compact: bool = False):
     mono_now = time.monotonic()
     candidates = []
     for addr, dev in orchestrator.devices.items():
         cls = dev["classification"]
         if cls.is_candidate:
             rec = dev["record"]
-            summary = signal_processor.get_summary(addr, mono_now)
+            summary = signal_processor.get_summary(addr, mono_now, include_history=not compact)
             candidates.append({
                 "address": addr,
                 "local_name": rec.local_name,
@@ -217,14 +217,14 @@ async def get_candidates():
     return candidates
 
 @app.get("/api/other-devices")
-async def get_other_devices():
+async def get_other_devices(compact: bool = False):
     mono_now = time.monotonic()
     others = []
     for addr, dev in orchestrator.devices.items():
         cls = dev["classification"]
         if not cls.is_candidate:
             rec = dev["record"]
-            summary = signal_processor.get_summary(addr, mono_now)
+            summary = signal_processor.get_summary(addr, mono_now, include_history=not compact)
             others.append({
                 "address": addr,
                 "local_name": rec.local_name,

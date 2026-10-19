@@ -245,9 +245,9 @@ class AcquisitionOrchestrator:
         self.session_manager.log_observation(record, classification)
 
         # Dispatch event
-        if self.event_callback and mono_s - self._last_emit.get(record.address, 0) >= .25:
+        if self.event_callback and record.address == self.selected_target_address and mono_s - self._last_emit.get(record.address, 0) >= .25:
             self._last_emit[record.address] = mono_s
-            summary = self.signal_processor.get_summary(record.address, mono_s)
+            summary = self.signal_processor.get_summary(record.address, mono_s, include_history=record.address == self.selected_target_address)
             self.event_callback("device_updated", {
                 "address": record.address,
                 "local_name": record.local_name,
@@ -354,7 +354,7 @@ class AcquisitionOrchestrator:
                 self.session_manager.log_observation(record, classification)
 
                 if self.event_callback:
-                    summary = self.signal_processor.get_summary(record.address, mono_s)
+                    summary = self.signal_processor.get_summary(record.address, mono_s, include_history=record.address == self.selected_target_address)
                     self.event_callback("device_updated", {
                         "address": record.address,
                         "local_name": record.local_name,

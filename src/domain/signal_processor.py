@@ -16,48 +16,42 @@ class SignalProcessor:
     def __init__(self, bucket_duration_s: float = 0.25):
         self.bucket_duration_s = bucket_duration_s
         self.signal_unit = 'dBm'
-        # Map: address -> list of raw observations [(mono_s, rssi)]
-        self._raw_rssi_history: Dict[str, List[Tuple[float, int]]] = {}
-        # Map: address -> list of bucketed groups [(bucket_mono_s, median_rssi)]
-        self._bucketed_groups: Dict[str, List[Tuple[float, float]]] = {}
+        self._buckets = {}
+        self._medians = {}
+        self._latest = {}
 
     def clear(self):
-        self._raw_rssi_history.clear()
-        self._bucketed_groups.clear()
+        self._buckets.clear()
+        self._medians.clear()
+        self._latest.clear()
 
     def add_observation(self, address: str, rssi: Optional[int], mono_s: float):
         if rssi is None:
             return
-        if address not in self._raw_rssi_history:
-            self._raw_rssi_history[address] = []
-            self._bucketed_groups[address] = []
-
-        self._raw_rssi_history[address].append((mono_s, rssi))
-        # SDR produces every decoded packet; bound the sliding history.
-        self._raw_rssi_history[address] = [p for p in self._raw_rssi_history[address] if p[0] >= mono_s - 125]
-        self._rebucket(address)
-
-    def _rebucket(self, address: str):
-        """Aggregate raw RSSI points into fixed 250ms buckets."""
-        raw = self._raw_rssi_history[address]
-        if not raw:
+        buckets = self._buckets.setdefault(address, {})
+        medians = self._medians.setdefault(address, {})
+        index = int(mono_s / self.bucket_duration_s)
+        latest = max(index, self._latest.get(address, index))
+        cutoff = latest - int(125 / self.bucket_duration_s) - 1
+        if index < cutoff:
             return
+        if latest != self._latest.get(address):
+            for old in list(buckets):
+                if old < cutoff:
+                    del buckets[old]
+                    medians.pop(old, None)
+            self._latest[address] = latest
+        buckets.setdefault(index, []).append(rssi)
+        medians.pop(index, None)
 
-        buckets: Dict[int, List[int]] = {}
-        for t, r in raw:
-            b_idx = int(t / self.bucket_duration_s)
-            buckets.setdefault(b_idx, []).append(r)
-
-        groups: List[Tuple[float, float]] = []
-        for b_idx in sorted(buckets.keys()):
-            mid_t = (b_idx + 0.5) * self.bucket_duration_s
-            med_rssi = statistics.median(buckets[b_idx])
-            groups.append((mid_t, med_rssi))
-
-        self._bucketed_groups[address] = groups
-
-    def get_summary(self, address: str, current_mono_s: float) -> SignalSummary:
-        groups = self._bucketed_groups.get(address, [])
+    def get_summary(self, address: str, current_mono_s: float, include_history: bool = True) -> SignalSummary:
+        buckets = self._buckets.get(address, {})
+        medians = self._medians.get(address, {})
+        for index, values in buckets.items():
+            if index not in medians:
+                medians[index] = statistics.median(values)
+        groups = [((index + 0.5) * self.bucket_duration_s, medians[index])
+                  for index in sorted(buckets)]
         if not groups:
             return SignalSummary(
                 signal_unit=self.signal_unit,
@@ -122,7 +116,7 @@ class SignalProcessor:
         graph_cutoff = current_mono_s - 120.0
         recent_hist = [
             {"t_rel_s": round(g[0] - current_mono_s, 2), "rssi": round(g[1], 1)}
-            for g in groups if g[0] >= graph_cutoff
+            for g in groups if include_history and g[0] >= graph_cutoff
         ]
 
         return SignalSummary(

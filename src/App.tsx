@@ -43,6 +43,7 @@ export const App: React.FC = () => {
   const [scanError, setScanError] = useState('');
 
   const socketRef = useRef<WebSocket | null>(null);
+  const refreshing = useRef(false);
 
   useEffect(() => {
     if (isNative) return;
@@ -54,12 +55,13 @@ export const App: React.FC = () => {
 
   // Poll API status & candidate lists periodically (for desktop/web)
   const refreshData = async () => {
-    if (isNative) return;
+    if (isNative || refreshing.current) return;
+    refreshing.current = true;
     try {
       const [resStatus, resCand, resOthers] = await Promise.all([
-        fetch('/api/status').then((r) => r.json()),
-        fetch('/api/candidates').then((r) => r.json()),
-        fetch('/api/other-devices').then((r) => r.json())
+        fetch('/api/status', { signal: AbortSignal.timeout(5000) }).then((r) => r.json()),
+        fetch('/api/candidates?compact=true', { signal: AbortSignal.timeout(5000) }).then((r) => r.json()),
+        fetch('/api/other-devices?compact=true', { signal: AbortSignal.timeout(5000) }).then((r) => r.json())
       ]);
       setStatus(resStatus);
       if (resStatus.is_scanning && ['computer', 'sdr'].includes(resStatus.capture_source)) {
@@ -69,7 +71,7 @@ export const App: React.FC = () => {
       setOtherDevices(resOthers);
     } catch {
       // offline or mobile
-    }
+    } finally { refreshing.current = false; }
   };
 
   useEffect(() => {
@@ -113,28 +115,11 @@ export const App: React.FC = () => {
             // Trigger throttled audio feedback if device matches selected target
             if (dev.address === status?.selected_target_address) {
               audioFeedback.playCueForRssi(dev.signal.current_rssi, dev.signal.signal_unit);
+              setStatus(prev => prev?.selected_target_address === dev.address ? {...prev, selected_target_summary: dev.signal} : prev);
             }
-            if (dev.classification.is_candidate) {
-              setCandidates((prev) => {
-                const idx = prev.findIndex((p) => p.address === dev.address);
-                if (idx >= 0) {
-                  const updated = [...prev];
-                  updated[idx] = dev;
-                  return updated;
-                }
-                return [...prev, dev];
-              });
-            } else {
-              setOtherDevices((prev) => {
-                const idx = prev.findIndex((p) => p.address === dev.address);
-                if (idx >= 0) {
-                  const updated = [...prev];
-                  updated[idx] = dev;
-                  return updated;
-                }
-                return [...prev, dev];
-              });
-            }
+            // Lists refresh once per second. Do not rerender the entire phone UI
+            // for every advertised packet; keep target audio responsive.
+
           }
         } catch {}
       };
