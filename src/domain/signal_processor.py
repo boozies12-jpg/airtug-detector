@@ -54,6 +54,7 @@ class SignalProcessor:
                   for index in sorted(buckets)]
         if not groups:
             return SignalSummary(
+                generated_at_mono_s=current_mono_s,
                 signal_unit=self.signal_unit,
                 current_rssi=None,
                 current_age_s=999.0,
@@ -120,6 +121,7 @@ class SignalProcessor:
         ]
 
         return SignalSummary(
+            generated_at_mono_s=current_mono_s,
             signal_unit=self.signal_unit,
             current_rssi=round(latest_rssi, 1),
             current_age_s=round(age_s, 2),

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LocatingGauge } from './components/LocatingGauge';
+import { LiveTargetGauge } from './components/LiveTargetGauge';
 import { CandidateList } from './components/CandidateList';
 import { DeviceListControls, useDeviceOrder } from './components/DeviceListControls';
 import { TrackerResearchCatalog } from './components/IdentityEvidence';
@@ -42,7 +42,6 @@ export const App: React.FC = () => {
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState('');
 
-  const socketRef = useRef<WebSocket | null>(null);
   const refreshing = useRef(false);
 
   useEffect(() => {
@@ -97,38 +96,6 @@ export const App: React.FC = () => {
     const interval = setInterval(refreshData, 1000);
     return () => clearInterval(interval);
   }, [isNative]);
-
-  // WebSocket for real-time live events (desktop/web)
-  useEffect(() => {
-    if (isNative) return;
-    try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      const ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === 'device_updated') {
-            const dev = msg.data;
-            // Trigger throttled audio feedback if device matches selected target
-            if (dev.address === status?.selected_target_address) {
-              audioFeedback.playCueForRssi(dev.signal.current_rssi, dev.signal.signal_unit);
-              setStatus(prev => prev?.selected_target_address === dev.address ? {...prev, selected_target_summary: dev.signal} : prev);
-            }
-            // Lists refresh once per second. Do not rerender the entire phone UI
-            // for every advertised packet; keep target audio responsive.
-
-          }
-        } catch {}
-      };
-
-      return () => {
-        ws.close();
-      };
-    } catch {}
-  }, [isNative, status?.selected_target_address]);
 
   // Elapsed timer when scanning
   useEffect(() => {
@@ -363,8 +330,11 @@ export const App: React.FC = () => {
             <p>Source sample continuity is not verified. Passive SDR reception may not receive device names available through active Bluetooth scanning.</p>
           </div>}
         {/* Locating Gauge for selected target (from Candidates or Other Devices) */}
-        <LocatingGauge
-          signal={selectedDevice?.signal || null}
+        <LiveTargetGauge
+          key={`${status?.current_session_id}:${status?.selected_target_address}`}
+          address={status?.selected_target_address || null}
+          isNative={isNative}
+          signal={status?.selected_target_summary || selectedDevice?.signal || null}
           audioEnabled={audioEnabled}
           onToggleAudio={() => {
             const next = !audioEnabled;

@@ -224,3 +224,27 @@ status/candidates/other devices. This provides less processing margin than
 2 MSPS but passed this three-minute workload. Sensitivity improvement is not
 yet established, and hardware sample continuity remains unverified.
 See [2.25 MSPS report](banana-pi-performance-225msps-2026-10-19.json).
+
+
+## Live locating display correction (2026-10-19, deployment pending)
+
+The gauge previously read the selected device from the one-second polled
+lists even though WebSocket events updated the target summary separately.
+`LiveTargetGauge` now owns the WebSocket and its own display state, so live
+updates do not rerender the complete device lists. Snapshot monotonic timestamps
+prevent delayed polling responses from overwriting newer target measurements.
+The connection retries after disconnect, with polling fallback shown in the UI.
+Gauge width animation is 100 ms rather than 300 ms. A short descriptive trend
+compares the most recent two seconds with the preceding two seconds; it needs
+two groups in each window and does not imply physical direction or distance.
+The historical 20-second trend remains separate.
+
+During investigation, an operator scan at 2.25 MSPS had 3,473,408 host-dropped
+samples out of 514,523,136 received and a maximum queue age of 2.825 seconds.
+This demonstrates that the earlier three-minute pass does not qualify longer
+workloads. The selected target's history had observations roughly two seconds
+apart and its last observation was already 32 seconds old at inspection.
+Fixing display delivery cannot manufacture new observations or remove upstream
+receiver backlog. End-to-end phone latency and hotspot performance still need
+measurement; the board disconnected from workshop Wi-Fi before deployment.
+The configured 2.25 MSPS rate has not been changed by this display correction.

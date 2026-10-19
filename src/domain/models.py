@@ -67,6 +67,7 @@ class ClassificationResult(BaseModel):
     conflicts: List[str] = Field(default_factory=list)
 
 class SignalSummary(BaseModel):
+    generated_at_mono_s: float = 0.0
     current_rssi: Optional[float] = None
     signal_unit: str = 'dBm'
     current_age_s: float = 0.0

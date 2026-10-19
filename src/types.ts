@@ -1,4 +1,5 @@
 export interface SignalSummary {
+  generated_at_mono_s?: number;
   signal_unit?: 'dBm' | 'dBFS';
   current_rssi: number | null;
   current_age_s: number;

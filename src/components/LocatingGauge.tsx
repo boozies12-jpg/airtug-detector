@@ -50,6 +50,17 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
     .filter((p) => p.t_rel_s >= -30.0)
     .sort((a, b) => a.t_rel_s - b.t_rel_s);
 
+  // Short trend is descriptive signal change, not a physical direction estimate.
+  const recent = points.filter(p => p.t_rel_s >= -2);
+  const previous = points.filter(p => p.t_rel_s >= -4 && p.t_rel_s < -2);
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  };
+  const shortChange = !isStale && recent.length >= 2 && previous.length >= 2
+    ? median(recent.map(p => p.rssi)) - median(previous.map(p => p.rssi)) : null;
+
   let pathData = '';
   let areaData = '';
   if (points.length >= 2) {
@@ -165,10 +176,15 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
         </div>
       </div>
 
+      <p className="text-sm font-semibold text-slate-600">
+        Movement signal trend (2s vs previous 2s): {shortChange === null
+          ? 'Waiting for enough observations'
+          : `${shortChange >= 2 ? 'Stronger' : shortChange <= -2 ? 'Weaker' : 'Stable'} (${shortChange > 0 ? '+' : ''}${shortChange.toFixed(1)} dB)`}
+      </p>
       {/* Progress Bar Gauge */}
       <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
         <div
-          className={`h-full rounded-full transition-all duration-300 ${
+          className={`h-full rounded-full transition-[width] duration-100 ${
             isStale
               ? "bg-slate-400 opacity-50"
               : percentage > 70

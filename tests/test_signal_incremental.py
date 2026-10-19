@@ -37,3 +37,15 @@ def test_out_of_order_and_multiple_addresses():
     processor.add_observation('b', -10, 10.1)
     assert processor.get_summary('a', 10.2).current_rssi == -50
     assert processor.get_summary('b', 10.2).current_rssi == -10
+
+
+def test_summary_timestamp_orders_live_updates_and_poll_snapshots():
+    processor = SignalProcessor()
+    assert processor.get_summary('missing', 9.0).generated_at_mono_s == 9.0
+    processor.add_observation('target', -80, 10.1)
+    old_poll = processor.get_summary('target', 10.2)
+    processor.add_observation('target', -40, 10.4)
+    live = processor.get_summary('target', 10.41)
+    assert live.generated_at_mono_s > old_poll.generated_at_mono_s
+    assert live.current_rssi == -40
+    assert old_poll.current_rssi == -80
