@@ -58,7 +58,7 @@ export const LocatingGauge: React.FC<LocatingGaugeProps> = ({
     const middle = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   };
-  const shortChange = !isStale && recent.length >= 2 && previous.length >= 2
+  const shortChange = !isStale && recent.length >= 1 && previous.length >= 1
     ? median(recent.map(p => p.rssi)) - median(previous.map(p => p.rssi)) : null;
 
   let pathData = '';

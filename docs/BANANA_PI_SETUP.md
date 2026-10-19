@@ -226,7 +226,7 @@ yet established, and hardware sample continuity remains unverified.
 See [2.25 MSPS report](banana-pi-performance-225msps-2026-10-19.json).
 
 
-## Live locating display correction (2026-10-19, deployment pending)
+## Live locating display correction (2026-10-19)
 
 The gauge previously read the selected device from the one-second polled
 lists even though WebSocket events updated the target summary separately.
@@ -236,7 +236,7 @@ prevent delayed polling responses from overwriting newer target measurements.
 The connection retries after disconnect, with polling fallback shown in the UI.
 Gauge width animation is 100 ms rather than 300 ms. A short descriptive trend
 compares the most recent two seconds with the preceding two seconds; it needs
-two groups in each window and does not imply physical direction or distance.
+at least one group in each window and does not imply physical direction or distance.
 The historical 20-second trend remains separate.
 
 During investigation, an operator scan at 2.25 MSPS had 3,473,408 host-dropped
@@ -246,5 +246,35 @@ workloads. The selected target's history had observations roughly two seconds
 apart and its last observation was already 32 seconds old at inspection.
 Fixing display delivery cannot manufacture new observations or remove upstream
 receiver backlog. End-to-end phone latency and hotspot performance still need
-measurement; the board disconnected from workshop Wi-Fi before deployment.
-The configured 2.25 MSPS rate has not been changed by this display correction.
+measurement. The initial deployment was delayed by the board switching back
+to its hotspot. Access was subsequently recovered over BLE-POC and the board
+was reconnected to TDCOMM with no pending rollback timer.
+
+
+## Current field-search configuration
+
+At the operator's request the board now uses **2 MSPS**, superseding the
+2.25 MSPS trial. The live locating gauge correction is installed. The gauge
+ages its displayed measurement on a local timer even if network updates stop,
+and automatically reconnects its WebSocket. Both phone and computer web
+clients use the same live target component. Reload existing browser pages
+once after deployment. Native Android scanning remains a separate path.
+
+For hot/cold searching, select the target and read the main live gauge and
+measurement age. The 20-second summary is historical and intentionally slower.
+The movement trend compares two adjacent two-second windows with at least one
+observation in each; sparse advertisements can leave a window empty. Movement
+trend means changing signal power, not a calibrated distance or direction.
+The receiver cannot supply a new measurement between successfully decoded
+advertisements. A measured Xiaomi target delivered roughly one observation
+every two seconds, despite low WebSocket network round-trip latency.
+
+Final validation: 297.35 seconds of receiver capture during a five-minute
+application test produced 71,116 CRC-valid packets with zero host drops and
+read errors. Maximum queue age was 180 ms, high water 6/64, and zero blocks
+remained at stop. Mean decode time was 18.09 ms per 32.768 ms block.
+WebSocket RTT from the development computer had an 18.02 ms median; this is
+not an RF-to-phone measurement. All 74 ARM tests passed, TypeScript checking
+and the board frontend build passed, and the live gauge was verified in the
+browser updating ahead of the device list. Diagnostic scanning was stopped.
+See [live gauge validation](banana-pi-live-gauge-validation-2026-10-19.json).

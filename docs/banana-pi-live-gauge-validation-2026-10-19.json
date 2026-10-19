@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-19",
+  "method": "Five-minute application workload (297.35 seconds receiver capture) at 2 MSPS with API polling, selected-target WebSockets and a browser showing the live gauge on office Wi-Fi. Initial ephemeral target replaced with Xiaomi target for stable timing.",
+  "health": {
+    "queue_capacity": 64,
+    "sample_rate": 2000000,
+    "rf_bandwidth": 2000000,
+    "rx_channel_index": 0,
+    "rx_channel_label": "RX1 (first receive path)",
+    "received_samples": 594542592,
+    "host_dropped_samples": 0,
+    "queue_high_water": 6,
+    "read_errors": [],
+    "packets_crc_ok": 71116,
+    "processed_blocks": 9072,
+    "decode_seconds": 164.0722998760043,
+    "decode_max_seconds": 0.15171344600003067,
+    "max_read_seconds": 0.15961209199986115,
+    "max_queue_age_seconds": 0.18008749299997362,
+    "source_continuity": "UNVERIFIED: no source sample counter in IQ stream",
+    "capture_thread_stopped": true,
+    "queued_blocks_at_stop": 0,
+    "wall_seconds": 297.352186049,
+    "crc_failed_candidates": 41280,
+    "block_duration_seconds": 0.032768,
+    "mean_decode_seconds": 0.018085570973986366,
+    "stream_test_passed": true
+  },
+  "websocket_rtt_ms": {
+    "median": 18.023,
+    "p95": 182.08,
+    "max": 370.071
+  },
+  "http_ms": {
+    "/api/status": {
+      "median": 111.871,
+      "p95": 298.606,
+      "max": 623.006
+    },
+    "/api/candidates?compact=true": {
+      "median": 119.987,
+      "p95": 335.68,
+      "max": 612.978
+    },
+    "/api/other-devices?compact=true": {
+      "median": 236.619,
+      "p95": 461.157,
+      "max": 902.171
+    }
+  },
+  "stable_target": {
+    "events": 31,
+    "generated_interval_s": {
+      "median": 2.01,
+      "p95": 2.204,
+      "max": 4.004
+    },
+    "websocket_rtt_ms": {
+      "median": 15.509,
+      "p95": 129.949,
+      "max": 217.036
+    },
+    "median_message_bytes": 4242
+  },
+  "validation": {
+    "arm_tests_passed": 74,
+    "typescript_check": "passed",
+    "board_frontend_build": "passed",
+    "browser": "Verified Sampling 2 MSPS, live connection, short trend, measurement age and gauge updated ahead of list."
+  },
+  "limitations": [
+    "RTT measured from development computer, not Android and not RF-to-screen delay.",
+    "Source continuity lacks hardware sample counter.",
+    "Five minutes does not qualify every field workload.",
+    "Selected Xiaomi target produced approximately one decoded observation every two seconds."
+  ],
+  "final_state": "Scan stopped and diagnostic target cleared; board connected to TDCOMM with no pending network rollback."
+}
