@@ -196,3 +196,31 @@ one address compared with 4 MSPS, while higher rates still overloaded under
 live application traffic. No hardware continuity counter is available, and
 longer runs in the intended RF environment remain necessary for qualification.
 See [performance report](banana-pi-performance-2026-10-19.json).
+
+
+## Fractional sampling update (2026-10-19)
+
+The selected board rate is now 2.25 MSPS (`BLE_SDR_SAMPLE_RATE=2250000`),
+43.75% below the original 4 MSPS. Analog RF bandwidth remains 2 MHz on
+channel 37. The filter uses 29 taps (14 samples / 6.22 microseconds delay).
+A native access-address matcher uses 9/4-sample symbol spacing with an
+integer-start timing hypothesis at every sample; the NumPy fallback uses
+identical indices. Payload decisions use the same spacing. This avoids
+rounding the decoder down to 2 samples per symbol or resampling back to 2 MSPS.
+Raw packet power and sample indices still refer to the original input IQ.
+
+An initial implementation searched nine quarter-sample timing streams and
+overloaded the board. It was stopped and replaced by the native matcher.
+Fractional-rate tests cover packet/block alignment, raw power, bad CRC,
+known sample gaps and native-versus-reference matching. A sampling increase
+alone does not establish better receiver sensitivity; that requires matched
+RF or replay measurements.
+
+Final 2.25 MSPS live validation lasted 181.77 seconds: 47,603 CRC-valid
+packets, zero host drops and no read errors. Mean decoding took 23.35 ms
+per 29.13 ms block; queue high water was 11/64 and maximum queue age 304 ms.
+One block remained at stop. Median HTTP latency was 40/47/175 ms for
+status/candidates/other devices. This provides less processing margin than
+2 MSPS but passed this three-minute workload. Sensitivity improvement is not
+yet established, and hardware sample continuity remains unverified.
+See [2.25 MSPS report](banana-pi-performance-225msps-2026-10-19.json).

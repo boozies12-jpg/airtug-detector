@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-19",
+  "method": "Three-minute live channel 37 scan, FIR enabled, simultaneous status/candidate/other-device API polling over workshop Wi-Fi.",
+  "health": {
+    "queue_capacity": 64,
+    "sample_rate": 2250000,
+    "rf_bandwidth": 2000000,
+    "rx_channel_index": 0,
+    "rx_channel_label": "RX1 (first receive path)",
+    "received_samples": 408551424,
+    "host_dropped_samples": 0,
+    "queue_high_water": 11,
+    "read_errors": [],
+    "packets_crc_ok": 47603,
+    "processed_blocks": 6233,
+    "decode_seconds": 145.56563022601404,
+    "decode_max_seconds": 0.14487070999985008,
+    "max_read_seconds": 0.15145469800063438,
+    "max_queue_age_seconds": 0.30361474199980876,
+    "source_continuity": "UNVERIFIED: no source sample counter in IQ stream",
+    "capture_thread_stopped": true,
+    "queued_blocks_at_stop": 1,
+    "wall_seconds": 181.7743603050003,
+    "crc_failed_candidates": 33945,
+    "block_duration_seconds": 0.02912711111111111,
+    "mean_decode_seconds": 0.023354023780846146,
+    "stream_test_passed": true
+  },
+  "http_latencies": {
+    "/api/status": {
+      "median_ms": 40.4,
+      "p95_ms": 169.3,
+      "max_ms": 240.3
+    },
+    "/api/candidates?compact=true": {
+      "median_ms": 47.0,
+      "p95_ms": 188.8,
+      "max_ms": 267.5
+    },
+    "/api/other-devices?compact=true": {
+      "median_ms": 175.1,
+      "p95_ms": 248.6,
+      "max_ms": 443.3
+    }
+  },
+  "scanner_stopped": true,
+  "tests": "71 full-suite ARM tests passed, followed by 24 focused ARM tests including two new tests; 64 Windows tests passed with 7 skipped, followed by 23 focused tests passed and 1 skipped.",
+  "limitations": [
+    "No source sample counter; SDR continuity unverified.",
+    "One queued block remained at stop; no sustained queue growth or host overflow during this run.",
+    "Sensitivity improvement versus 2 MSPS has not been established.",
+    "Three minutes does not qualify every RF workload or hotspot condition."
+  ]
+}

@@ -9,7 +9,7 @@ User=sensorz
 WorkingDirectory=/home/sensorz/ble-poc
 Environment=PYTHONUNBUFFERED=1
 Environment=OPENBLAS_NUM_THREADS=1
-Environment=BLE_SDR_SAMPLE_RATE=2000000
+Environment=BLE_SDR_SAMPLE_RATE=2250000
 Environment=BLE_SDR_QUEUE_BLOCKS=64
 Environment=BLE_WIFI_INTERFACE=wlx90de800f9259
 Environment=XDG_RUNTIME_DIR=/run/user/1000

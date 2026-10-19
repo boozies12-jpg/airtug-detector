@@ -83,9 +83,9 @@ def ad_fields(data):
 
 class Decoder:
     def __init__(self, rate=4000000, channel=37, measure_power=True):
-        if rate % 1000000 or rate < 2000000:
-            raise ValueError('Use an integer 2 or more samples per BLE 1M symbol')
-        self.sps = rate // 1000000
+        if rate != 2250000 and (rate % 1000000 or rate < 2000000):
+            raise ValueError('Use 2.25 or an integer 2 or more samples per BLE 1M symbol')
+        self.sps = rate / 1000000 if rate == 2250000 else rate // 1000000
         self.channel = channel
         self.measure_power = measure_power
         self.tail = np.empty(0, np.complex64)
@@ -105,7 +105,7 @@ class Decoder:
         x = np.concatenate((self.tail, samples))
         base = start - len(self.tail)
         self.end = start + len(samples)
-        self.tail = x[-(400 * self.sps + 8):].copy()
+        self.tail = x[-int(400 * self.sps + 8):].copy()
         if len(x) < 100 * self.sps:
             return []
         differential = x[1:] * np.conj(x[:-1])
@@ -113,7 +113,17 @@ class Decoder:
         # All 32-term +/-1 sums are exact in float32; this uses faster SIMD kernels.
         pattern = AA.astype(np.float32) * 2 - 1
         hits = []
-        if self.matcher is not None:
+        if self.sps == 2.25:
+            if self.matcher is not None and hasattr(self.matcher, 'fractional'):
+                hits = self.matcher.find_fractional(positive)
+            else:
+                size = max(0, len(positive) - (31 * 9 // 4))
+                errors = np.zeros(size, np.uint8)
+                for bit in range(32):
+                    offset = bit * 9 // 4
+                    errors += positive[offset:offset + size] != AA[bit]
+                hits = np.flatnonzero(errors <= 2).tolist()
+        elif self.matcher is not None:
             hits = self.matcher.find(positive, self.sps)
         else:
             for phase in range(self.sps):
@@ -122,13 +132,18 @@ class Decoder:
                 for pos in np.flatnonzero(scores >= 28):
                     hits.append(int(pos) * self.sps + phase)
         packets = []
-        for sample in sorted(hits):
+        for position in sorted(hits):
+            sample = int(position)
             absolute = base + sample
             if absolute <= self.last_packet + 8 * self.sps:
                 continue
             # Evaluate phase only around access-address candidates, retaining
             # the original frequency-offset estimate and payload decisions.
-            symbols = np.angle(differential[sample:sample + (32 + 42 * 8) * self.sps:self.sps])
+            if self.sps == 2.25:
+                indices = (position + np.arange(32 + 42 * 8) * self.sps).astype(np.intp)
+                symbols = np.angle(differential[indices[indices < len(differential)]])
+            else:
+                symbols = np.angle(differential[sample:sample + (32 + 42 * 8) * self.sps:self.sps])
             if len(symbols) < 48:
                 continue
             aa_symbols = symbols[:32]
@@ -149,7 +164,7 @@ class Decoder:
                 self.crc_fail += 1
                 continue
             self.last_packet = absolute
-            window = x[sample:sample + (32 + count * 8) * self.sps]
+            window = x[sample:sample + int((32 + count * 8) * self.sps)]
             power = float(np.mean(np.abs(window) ** 2)) if self.measure_power else 1.0
             packet = {'sample_index_host': absolute, 'channel': self.channel,
                       'phy': 'LE1M', 'pdu_type': kind, 'crc_ok': True,
@@ -184,7 +199,7 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     p.add_argument('--uri', default='ip:192.168.2.1')
     p.add_argument('--dll-dir', default=str(Path(__file__).resolve().parents[2] / 'vendor/libiio-0.26/Windows-VS-2022-x64'))
     p.add_argument('--channel', type=int, choices=FREQUENCIES, default=37)
-    p.add_argument('--rate', type=int, choices=(2000000, 3000000, 4000000), default=4000000)
+    p.add_argument('--rate', type=int, choices=(2000000, 2250000, 3000000, 4000000), default=4000000)
     p.add_argument('--gain', type=int, default=40)
     p.add_argument('--seconds', type=float, default=30)
     p.add_argument('--buffer', type=int, default=65536)
@@ -205,7 +220,7 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     sdr.rx_hardwaregain_chan0 = args.gain
     sdr.rx_buffer_size = args.buffer
     actual_rate = int(sdr.sample_rate)
-    if actual_rate in (2000000, 3000000, 4000000) and not args.no_prefilter:
+    if actual_rate in (2000000, 2250000, 3000000, 4000000) and not args.no_prefilter:
         from src.domain.ble_filter import FilteredDecoder
         decoder = FilteredDecoder(actual_rate, args.channel)
     else:

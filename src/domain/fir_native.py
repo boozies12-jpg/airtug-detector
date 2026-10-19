@@ -58,6 +58,20 @@ class NativeAccessMatcher:
         if len(pattern) != 32:
             raise ValueError('Expected a 32-bit access address')
         self.pattern = int(''.join(str(int(bit)) for bit in pattern), 2)
+        try:
+            self.fractional = self.library.ble_access_hits_225
+            self.fractional.argtypes = [self.run.argtypes[0], ctypes.c_size_t,
+                                       ctypes.c_uint32, self.run.argtypes[-1]]
+            self.fractional.restype = ctypes.c_size_t
+        except AttributeError:
+            pass
+
+    def find_fractional(self, positive):
+        positive = np.ascontiguousarray(positive, dtype=np.uint8)
+        hits = np.empty(len(positive), dtype=np.uintp)
+        count = self.fractional(positive, len(positive), self.pattern, hits)
+        return hits[:count].tolist()
+
 
     def find(self, positive, sps):
         if sps < 1:

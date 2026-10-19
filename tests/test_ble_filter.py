@@ -89,3 +89,48 @@ def test_three_msps_filtered_packet_across_boundaries(block_size):
     length = (32 + (len(bytes.fromhex(pdu)) + 3) * 8) * 3
     expected = 10 * np.log10(np.mean(np.abs(x[first:first + length]) ** 2))
     assert packets[0]['power_dbfs'] == pytest.approx(expected, abs=1e-5)
+
+
+@pytest.mark.parametrize('block_size', [113, 257, 65536])
+@pytest.mark.parametrize('phase', range(4))
+def test_fractional_rate_packet_and_raw_power(block_size, phase):
+    from scipy.signal import resample_poly
+    x, pdu = waveform()
+    x = resample_poly(x[phase:], 9, 16).astype(np.complex64)
+    decoder = FilteredDecoder(2250000)
+    packets = []
+    for start in range(0, len(x), block_size):
+        packets += decoder.feed(x[start:start + block_size], start)
+    assert len(packets) == 1 and packets[0]['pdu_hex'] == pdu
+    first = packets[0]['sample_index_host']
+    length = int((32 + (len(bytes.fromhex(pdu)) + 3) * 8) * 2.25)
+    expected = 10 * np.log10(np.mean(np.abs(x[first:first + length]) ** 2))
+    assert packets[0]['power_dbfs'] == pytest.approx(expected, abs=1e-5)
+
+
+def test_fractional_native_matcher_matches_reference():
+    from src.domain.fir_native import NativeAccessMatcher
+    from src.domain.sdr_rx import AA
+    try:
+        matcher = NativeAccessMatcher(AA)
+    except (OSError, AttributeError):
+        pytest.skip('Native library unavailable')
+    if not hasattr(matcher, 'fractional'):
+        pytest.skip('Fractional native matcher unavailable')
+    decisions = np.random.default_rng(42).integers(0, 2, 10000, dtype=np.uint8)
+    for start in [0, 317, 9929]:
+        decisions[start + np.arange(32) * 9 // 4] = AA
+    expected = [i for i in range(len(decisions) - 31 * 9 // 4)
+                if np.count_nonzero(decisions[i + np.arange(32) * 9 // 4] != AA) <= 2]
+    assert matcher.find_fractional(decisions) == expected
+
+
+def test_fractional_rate_does_not_bridge_gap_or_accept_bad_crc():
+    from scipy.signal import resample_poly
+    x, _ = waveform(corrupt=True)
+    assert not FilteredDecoder(2250000).feed(resample_poly(x, 9, 16).astype(np.complex64), 0)
+    x, _ = waveform()
+    x = resample_poly(x, 9, 16).astype(np.complex64)
+    decoder = FilteredDecoder(2250000)
+    assert not decoder.feed(x[:230], 0)
+    assert not decoder.feed(x[270:], 270)

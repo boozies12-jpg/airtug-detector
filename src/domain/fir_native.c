@@ -77,3 +77,18 @@ size_t ble_access_hits(const uint8_t *positive, size_t count, size_t sps,
     }
     return used;
 }
+
+/* 9/4 samples per symbol, one timing hypothesis per input sample. */
+size_t ble_access_hits_225(const uint8_t *positive, size_t count,
+                           uint32_t pattern, size_t *hits) {
+    size_t used = 0;
+    for (size_t i = 0; i + 31 * 9 / 4 < count; ++i) {
+        unsigned errors = 0;
+        for (unsigned bit = 0; bit < 32; ++bit) {
+            errors += (positive[i + bit * 9 / 4] != 0) != ((pattern >> (31-bit)) & 1);
+            if (errors > 2) break;
+        }
+        if (errors <= 2) hits[used++] = i;
+    }
+    return used;
+}
