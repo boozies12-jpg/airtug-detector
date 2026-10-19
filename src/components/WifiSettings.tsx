@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Wifi } from 'lucide-react';
 
 type NetworkStatus = {
@@ -17,7 +17,10 @@ export function WifiSettings() {
   const [joinUrl, setJoinUrl] = useState('');
   const [offline, setOffline] = useState(false);
 
+  const refreshing = useRef(false);
   const refresh = async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
     try {
       const response = await fetch('/api/network', { signal: AbortSignal.timeout(8000) });
       if (!response.ok) throw new Error();
@@ -25,13 +28,14 @@ export function WifiSettings() {
       setNetwork(value); setOffline(false);
       if (value.pending) setOpen(true);
     } catch { setOffline(true); }
+    finally { refreshing.current = false; }
   };
   useEffect(() => { refresh(); }, []);
   useEffect(() => {
-    if (!open) return;
-    const timer = setInterval(refresh, 5000);
+    if (network?.enabled === false) return;
+    const timer = setInterval(refresh, open || !network ? 5000 : 15000);
     return () => clearInterval(timer);
-  }, [open]);
+  }, [open, network?.enabled]);
 
   async function action(kind: 'connect' | 'field' | 'confirm', saved = false) {
     setBusy(true); setError(''); setMessage(''); setJoinUrl('');
@@ -59,7 +63,12 @@ export function WifiSettings() {
     } finally { setBusy(false); }
   }
 
-  if (!network?.enabled) return null;
+  if (network?.enabled === false) return null;
+  if (!network) return <section dir="ltr" className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+    <h2 className="font-bold text-slate-800">Wi-Fi &amp; field mode</h2>
+    <p role="status" className="mt-2 text-slate-600">{offline ? 'Network settings are temporarily unavailable. Retrying automatically.' : 'Loading network settings...'}</p>
+    <button type="button" onClick={refresh} className="mt-2 rounded-lg border px-4 py-2 text-blue-700">Retry network settings</button>
+  </section>;
   return <section dir="ltr" className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
     <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
       className="flex w-full items-center gap-2 text-left font-bold text-slate-800">
