@@ -51,11 +51,14 @@ class AcquisitionOrchestrator:
         self._last_emit = {}
 
     async def start_scan(self, session_name: str = "", demo_mode: bool = False,
-                         source: str = 'computer', sdr_uri: str = 'ip:192.168.2.1'):
+                         source: str = 'computer', sdr_uri: str = 'ip:192.168.2.1', sdr_scan_mode: str = 'fixed37'):
         if self.is_scanning:
             raise ValueError('Stop the current scan before changing receivers')
         if source not in ('computer', 'sdr'):
             raise ValueError('Unsupported capture source')
+
+        if sdr_scan_mode not in ('fixed37', 'hop'):
+            raise ValueError('Unsupported SDR scan mode')
 
         self.is_demo = demo_mode
         self.is_scanning = True
@@ -84,7 +87,7 @@ class AcquisitionOrchestrator:
         elif self.source == 'sdr':
             self._sdr = SdrBackend(self._handle_sdr_packet, self._handle_sdr_health, self._handle_sdr_error)
             try:
-                await self._sdr.start(sdr_uri)
+                await self._sdr.start(sdr_uri, scan_mode=sdr_scan_mode)
             except BaseException as exc:
                 self.last_error = str(exc) or 'SDR startup timed out'
                 await self.stop_scan()

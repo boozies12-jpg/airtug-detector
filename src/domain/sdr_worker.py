@@ -14,6 +14,7 @@ def main():
     from .ble_filter import FilteredDecoder  # noqa: F401
     parser = argparse.ArgumentParser()
     parser.add_argument('--uri', default='ip:192.168.2.1')
+    parser.add_argument('--scan-mode', choices=('fixed37', 'hop'), default='fixed37')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     dll = os.environ.get('PLUTO_DLL_DIR', str(root / 'vendor/libiio-0.26/Windows-VS-2022-x64'))
@@ -30,7 +31,7 @@ def main():
         receive(['--uri', args.uri, '--dll-dir', dll, '--seconds', '86400',
                  '--rate', os.environ.get('BLE_SDR_SAMPLE_RATE', '4000000'),
                  '--queue-blocks', os.environ.get('BLE_SDR_QUEUE_BLOCKS', '16'),
-                 '--output', str(root / 'data/sdr-captures')],
+                 '--output', str(root / 'data/sdr-captures')] + (['--hop'] if args.scan_mode == 'hop' else []),
                 on_packet=lambda value: emit('packet', value),
                 on_health=lambda value: emit('health', value), stop_event=stop)
     except (Exception, SystemExit) as exc:

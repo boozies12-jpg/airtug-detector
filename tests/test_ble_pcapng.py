@@ -16,8 +16,9 @@ def blocks(raw):
     return result
 
 
-def test_capture_contains_radio_header_and_honest_power_comment():
-    packet = dict(crc_ok=True, channel=37, pdu_hex='4206665544332211', crc_hex='010203',
+@pytest.mark.parametrize('channel,frequency_index', [(37, 0), (38, 12), (39, 39)])
+def test_capture_contains_radio_header_and_honest_power_comment(channel, frequency_index):
+    packet = dict(crc_ok=True, channel=channel, pdu_hex='4206665544332211', crc_hex='010203',
                   power_dbfs=-23.45, sample_index_host=100, clipped_fraction=0)
     data = capture_header() + packet_block(packet, timestamp_ns=1234567000)
     parts = blocks(data)
@@ -26,7 +27,7 @@ def test_capture_contains_radio_header_and_honest_power_comment():
     body = parts[2][1]
     assert struct.unpack_from('<III', body) == (0, 0, 1234567)
     radio = body[20:30]
-    assert radio[0] == 0  # frequency index 0 means logical advertising channel 37
+    assert radio[0] == frequency_index
     flags = struct.unpack_from('<H', radio, 8)[0]
     assert flags & 0x0C01 == 0x0C01
     assert not flags & 2  # never claim measured dBm

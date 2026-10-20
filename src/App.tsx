@@ -39,6 +39,10 @@ export const App: React.FC = () => {
     try { return localStorage.getItem('ble.sdrUri') || defaultSdrUri; }
     catch { return defaultSdrUri; }
   });
+  const [sdrScanMode, setSdrScanMode] = useState<'fixed37' | 'hop'>(() => {
+    try { return localStorage.getItem('ble.sdrScanMode') === 'hop' ? 'hop' : 'fixed37'; }
+    catch { return 'fixed37'; }
+  });
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState('');
 
@@ -49,8 +53,9 @@ export const App: React.FC = () => {
     try {
       localStorage.setItem('ble.captureSource', captureSource);
       localStorage.setItem('ble.sdrUri', sdrUri);
+      localStorage.setItem('ble.sdrScanMode', sdrScanMode);
     } catch { /* Scanning also works when browser storage is unavailable. */ }
-  }, [isNative, captureSource, sdrUri]);
+  }, [isNative, captureSource, sdrUri, sdrScanMode]);
 
   // Poll API status & candidate lists periodically (for desktop/web)
   const refreshData = async () => {
@@ -125,7 +130,7 @@ export const App: React.FC = () => {
       const response = await fetch('/api/scan/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_name: sessionName, demo_mode: demo, source: captureSource, sdr_uri: sdrUri })
+        body: JSON.stringify({ session_name: sessionName, demo_mode: demo, source: captureSource, sdr_uri: sdrUri, sdr_scan_mode: sdrScanMode })
       });
       if (!response.ok) {
         const error = await response.json();
@@ -254,13 +259,22 @@ export const App: React.FC = () => {
               disabled={scanBusy || status?.is_scanning} onChange={e => setCaptureSource(e.target.value as 'computer' | 'sdr')}
               className="border border-slate-300 rounded-lg bg-white p-2 disabled:opacity-60">
               <option value="computer">Computer Bluetooth</option>
-              <option value="sdr">Pluto SDR · channel 37</option>
+              <option value="sdr">Pluto SDR</option>
             </select>
           </label>}
           {!isNative && captureSource === 'sdr' && <label className="text-xs font-semibold text-slate-600 flex flex-col gap-1">
             Pluto connection
             <input aria-label="Pluto connection" value={sdrUri} onChange={e => setSdrUri(e.target.value)}
               disabled={scanBusy || status?.is_scanning} className="border border-slate-300 rounded-lg p-2 w-40" />
+          </label>}
+          {!isNative && captureSource === 'sdr' && <label className="text-xs font-semibold text-slate-600 flex flex-col gap-1">
+            SDR scan mode
+            <select aria-label="SDR scan mode" value={status?.is_scanning ? status.capture_health?.scan_mode || sdrScanMode : sdrScanMode}
+              disabled={scanBusy || status?.is_scanning} onChange={e => setSdrScanMode(e.target.value as 'fixed37' | 'hop')}
+              className="border border-slate-300 rounded-lg bg-white p-2 disabled:opacity-60">
+              <option value="fixed37">Fixed channel 37 · 2402 MHz</option>
+              <option value="hop">Hop 37 → 38 → 39 · 10 seconds each</option>
+            </select>
           </label>}
           {!status?.is_scanning ? (
             <>
@@ -322,7 +336,9 @@ export const App: React.FC = () => {
         </div>}
         {!isNative && (status?.capture_source === 'sdr' || captureSource === 'sdr') &&
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-            <strong>Pluto SDR · channel 37 · 2402 MHz</strong>
+            <strong>Pluto SDR · {status?.is_scanning && status.capture_health?.scan_mode === 'hop' ? 'Hopping 37 → 38 → 39 (10 seconds each)' : !status?.is_scanning && sdrScanMode === 'hop' ? 'Hopping 37 → 38 → 39 (10 seconds each)' : 'Fixed channel 37 · 2402 MHz'}</strong>
+            {status?.is_scanning && status.capture_health?.current_channel && <p>Receiving channel {status.capture_health.current_channel} · {(status.capture_health.center_frequency_hz || 0) / 1000000} MHz · Channel switches: {status.capture_health.channel_switches || 0}</p>}
+            <p>Hopping listens to one channel at a time. A channel is revisited about every 30 seconds; fixed mode is better for continuous hot/cold tracking. Signal levels can differ between channels.</p>
             {status?.capture_health?.sample_rate && <p>Sampling: {status.capture_health.sample_rate / 1000000} MSPS / RF bandwidth: {(status.capture_health.rf_bandwidth || 0) / 1000000} MHz</p>}
             <p>Receiver input: {status?.capture_health?.rx_channel_label || 'RX1 (first receive path)'}. Antenna or cable connection is not detected by software.</p>
             <p>Relative power in dBFS, fixed gain 40 dB. Stop other SDR applications before scanning. Stop the scan to change receivers.</p>

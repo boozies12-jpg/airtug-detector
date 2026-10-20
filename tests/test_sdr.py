@@ -64,7 +64,7 @@ async def test_switch_clears_old_signal_target_and_marks(tmp_path):
 async def test_failed_sdr_start_closes_session(tmp_path, monkeypatch):
     class FailedBackend:
         def __init__(self, *args): pass
-        async def start(self, uri): raise RuntimeError('No Pluto connected')
+        async def start(self, uri, scan_mode='fixed37'): raise RuntimeError('No Pluto connected')
         async def stop(self): pass
     monkeypatch.setattr('src.domain.acquisition.SdrBackend', FailedBackend)
     o = make_orchestrator(tmp_path)

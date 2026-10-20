@@ -24,7 +24,7 @@ def block(kind, body):
 def capture_header():
     section = block(0x0A0D0D0A, struct.pack('<IHHq', 0x1A2B3C4D, 1, 0, -1))
     interface = struct.pack('<HHI', 256, 0, 65535)
-    interface += option(2, b'Pluto SDR BLE channel 37')
+    interface += option(2, b'Pluto SDR BLE advertising channels')
     interface += option(3, b'BLE 1M; host export timestamps, not RF timestamps; dBFS in packet comments')
     interface += option(9, b'\x06') + option(0, b'')  # microseconds
     return section + block(1, interface)

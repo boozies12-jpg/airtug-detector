@@ -44,9 +44,9 @@ class SdrBackend:
         self.error = None
         self.stopping = False
 
-    async def start(self, uri):
+    async def start(self, uri, scan_mode='fixed37'):
         self.process = await asyncio.create_subprocess_exec(
-            sys.executable, '-u', '-m', 'src.domain.sdr_worker', '--uri', uri,
+            sys.executable, '-u', '-m', 'src.domain.sdr_worker', '--uri', uri, '--scan-mode', scan_mode,
             cwd=Path(__file__).resolve().parents[2],
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,

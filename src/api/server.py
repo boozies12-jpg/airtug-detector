@@ -145,6 +145,7 @@ class StartScanRequest(BaseModel):
     demo_mode: bool = False
     source: Literal['computer', 'sdr'] = 'computer'
     sdr_uri: str = 'ip:192.168.2.1'
+    sdr_scan_mode: Literal['fixed37', 'hop'] = 'fixed37'
 
 scan_lock = asyncio.Lock()
 
@@ -159,7 +160,7 @@ async def start_scan(req: StartScanRequest):
             if orchestrator.is_scanning:
                 raise HTTPException(status_code=409, detail='Stop the current scan before changing receivers')
             await orchestrator.start_scan(session_name=req.session_name or "", demo_mode=req.demo_mode,
-                                          source=req.source, sdr_uri=req.sdr_uri)
+                                          source=req.source, sdr_uri=req.sdr_uri, sdr_scan_mode=req.sdr_scan_mode)
         return {"status": "started", "session_id": session_manager.current_session_id, "demo_mode": req.demo_mode}
     except HTTPException:
         raise

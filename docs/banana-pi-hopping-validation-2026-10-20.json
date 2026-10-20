@@ -1,0 +1,182 @@
+{
+  "duration_per_mode_s": 180,
+  "conditions": "Same receiver, 2 MSPS, 2 MHz bandwidth, gain 40. Sequential runs in a changing RF environment. CPU percent is per core.",
+  "complete": true,
+  "fixed37": {
+    "health": {
+      "scan_mode": "fixed37",
+      "current_channel": 37,
+      "center_frequency_hz": 2402000000,
+      "dwell_seconds": null,
+      "channel_switches": 0,
+      "retune_seconds": 0.0,
+      "settling_discarded_samples": 0,
+      "channel_samples": {
+        "37": 367722496
+      },
+      "channel_packets": {
+        "37": 45268
+      },
+      "hop_history": [],
+      "queue_capacity": 64,
+      "sample_rate": 2000000,
+      "rf_bandwidth": 2000000,
+      "rx_channel_index": 0,
+      "rx_channel_label": "RX1 (first receive path)",
+      "received_samples": 367788032,
+      "host_dropped_samples": 0,
+      "queue_high_water": 23,
+      "read_errors": [],
+      "packets_crc_ok": 45268,
+      "processed_blocks": 5611,
+      "decode_seconds": 99.44697777800934,
+      "decode_max_seconds": 0.04546564799989028,
+      "max_read_seconds": 0.15984888599996339,
+      "max_queue_age_seconds": 0.7251284599999508,
+      "source_continuity": "UNVERIFIED: no source sample counter in IQ stream",
+      "capture_thread_stopped": true,
+      "queued_blocks_at_stop": 1,
+      "wall_seconds": 183.96204824899996,
+      "crc_failed_candidates": 17602,
+      "block_duration_seconds": 0.032768,
+      "mean_decode_seconds": 0.017723574724293235,
+      "stream_test_passed": true
+    },
+    "unique_addresses": 79,
+    "unique_addresses_by_channel": {
+      "37": 79
+    },
+    "candidate_count": 6,
+    "other_count": 73,
+    "mean_cpu_percent_one_core": 159.6845251674448,
+    "max_rss_mib": 169.72265625,
+    "median_local_api_ms": 15.013294499908625,
+    "max_local_api_ms": 718.3619540001018
+  },
+  "hop": {
+    "health": {
+      "scan_mode": "hop",
+      "current_channel": 39,
+      "center_frequency_hz": 2480000000,
+      "dwell_seconds": 10,
+      "channel_switches": 17,
+      "retune_seconds": 1.0423588610005936,
+      "settling_discarded_samples": 1114112,
+      "channel_samples": {
+        "37": 120193024,
+        "38": 120193024,
+        "39": 118423552
+      },
+      "channel_packets": {
+        "37": 14358,
+        "38": 11409,
+        "39": 12519
+      },
+      "hop_history": [
+        {
+          "elapsed_seconds": 10.074968021999894,
+          "channel": 38
+        },
+        {
+          "elapsed_seconds": 20.160927162000007,
+          "channel": 39
+        },
+        {
+          "elapsed_seconds": 30.246577088000095,
+          "channel": 37
+        },
+        {
+          "elapsed_seconds": 40.33346924300008,
+          "channel": 38
+        },
+        {
+          "elapsed_seconds": 50.431691551000085,
+          "channel": 39
+        },
+        {
+          "elapsed_seconds": 60.511603511999965,
+          "channel": 37
+        },
+        {
+          "elapsed_seconds": 70.59712378800009,
+          "channel": 38
+        },
+        {
+          "elapsed_seconds": 80.68318199100008,
+          "channel": 39
+        },
+        {
+          "elapsed_seconds": 90.76917856799992,
+          "channel": 37
+        },
+        {
+          "elapsed_seconds": 100.85393087600005,
+          "channel": 38
+        },
+        {
+          "elapsed_seconds": 110.91597477699997,
+          "channel": 39
+        },
+        {
+          "elapsed_seconds": 121.002492372,
+          "channel": 37
+        },
+        {
+          "elapsed_seconds": 131.08924509500002,
+          "channel": 38
+        },
+        {
+          "elapsed_seconds": 141.17558427099993,
+          "channel": 39
+        },
+        {
+          "elapsed_seconds": 151.26196711400007,
+          "channel": 37
+        },
+        {
+          "elapsed_seconds": 161.36916464399997,
+          "channel": 38
+        },
+        {
+          "elapsed_seconds": 171.455103731,
+          "channel": 39
+        }
+      ],
+      "queue_capacity": 64,
+      "sample_rate": 2000000,
+      "rf_bandwidth": 2000000,
+      "rx_channel_index": 0,
+      "rx_channel_label": "RX1 (first receive path)",
+      "received_samples": 359923712,
+      "host_dropped_samples": 0,
+      "queue_high_water": 22,
+      "read_errors": [],
+      "packets_crc_ok": 38286,
+      "processed_blocks": 5475,
+      "decode_seconds": 95.29866336899795,
+      "decode_max_seconds": 0.04580090700005712,
+      "max_read_seconds": 0.15809409700000288,
+      "max_queue_age_seconds": 0.6764440030001424,
+      "source_continuity": "UNVERIFIED: no source sample counter in IQ stream",
+      "capture_thread_stopped": true,
+      "queued_blocks_at_stop": 0,
+      "wall_seconds": 180.552655468,
+      "crc_failed_candidates": 22547,
+      "block_duration_seconds": 0.032768,
+      "mean_decode_seconds": 0.01740614856054757,
+      "stream_test_passed": true
+    },
+    "unique_addresses": 96,
+    "unique_addresses_by_channel": {
+      "37": 83,
+      "38": 86,
+      "39": 84
+    },
+    "candidate_count": 9,
+    "other_count": 87,
+    "mean_cpu_percent_one_core": 159.90692474441445,
+    "max_rss_mib": 172.8203125,
+    "median_local_api_ms": 19.708080999862432,
+    "max_local_api_ms": 956.4792690000559
+  }
+}

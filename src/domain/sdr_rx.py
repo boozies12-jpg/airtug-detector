@@ -1,4 +1,4 @@
-"""Receive-only, single primary channel BLE 1M prototype. No TX calls."""
+"""Receive-only BLE 1M, fixed channel or sequential advertising channels. No TX calls."""
 from functools import lru_cache
 import argparse
 import json
@@ -199,6 +199,7 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     p.add_argument('--uri', default='ip:192.168.2.1')
     p.add_argument('--dll-dir', default=str(Path(__file__).resolve().parents[2] / 'vendor/libiio-0.26/Windows-VS-2022-x64'))
     p.add_argument('--channel', type=int, choices=FREQUENCIES, default=37)
+    p.add_argument('--hop', action='store_true', help='Cycle 37, 38, 39 with 10 seconds per channel')
     p.add_argument('--rate', type=int, choices=(2000000, 2250000, 3000000, 4000000), default=4000000)
     p.add_argument('--gain', type=int, default=40)
     p.add_argument('--seconds', type=float, default=30)
@@ -215,19 +216,29 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     sdr.rx_enabled_channels = [0]
     sdr.sample_rate = args.rate
     sdr.rx_rf_bandwidth = 2000000
-    sdr.rx_lo = FREQUENCIES[args.channel]
+    channels = (37, 38, 39) if args.hop else (args.channel,)
+    sdr.rx_lo = FREQUENCIES[channels[0]]
     sdr.gain_control_mode_chan0 = 'manual'
     sdr.rx_hardwaregain_chan0 = args.gain
     sdr.rx_buffer_size = args.buffer
     actual_rate = int(sdr.sample_rate)
     if actual_rate in (2000000, 2250000, 3000000, 4000000) and not args.no_prefilter:
         from src.domain.ble_filter import FilteredDecoder
-        decoder = FilteredDecoder(actual_rate, args.channel)
+        decoder_factory = lambda channel: FilteredDecoder(actual_rate, channel)
     else:
-        decoder = Decoder(actual_rate, args.channel)
+        decoder_factory = lambda channel: Decoder(actual_rate, channel)
+    decoded_epoch = 0
+    decoder = decoder_factory(channels[0])
+    prior_crc_fail = 0
     q = queue.Queue(maxsize=args.queue_blocks)
     stop = stop_event if stop_event is not None else threading.Event()
-    stats = {'queue_capacity': args.queue_blocks, 'sample_rate': actual_rate, 'rf_bandwidth': int(sdr.rx_rf_bandwidth), 'rx_channel_index': 0, 'rx_channel_label': 'RX1 (first receive path)',
+    stats = {'scan_mode': 'hop' if args.hop else 'fixed37', 'current_channel': channels[0],
+             'center_frequency_hz': FREQUENCIES[channels[0]], 'dwell_seconds': 10 if args.hop else None,
+             'channel_switches': 0, 'retune_seconds': 0., 'settling_discarded_samples': 0,
+             'channel_samples': {str(ch): 0 for ch in channels},
+             'channel_packets': {str(ch): 0 for ch in channels},
+             'hop_history': [],
+             'queue_capacity': args.queue_blocks, 'sample_rate': actual_rate, 'rf_bandwidth': int(sdr.rx_rf_bandwidth), 'rx_channel_index': 0, 'rx_channel_label': 'RX1 (first receive path)',
              'received_samples': 0, 'host_dropped_samples': 0, 'queue_high_water': 0,
              'read_errors': [], 'packets_crc_ok': 0, 'processed_blocks': 0,
              'decode_seconds': 0., 'decode_max_seconds': 0.,
@@ -242,8 +253,33 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
     (output / 'config.json').write_text(json.dumps(metadata, indent=2))
 
     def capture():
+        epoch = 0
+        channel = channels[0]
+        next_hop = time.perf_counter() + 10
         while not stop.is_set():
             try:
+                if args.hop and time.perf_counter() >= next_hop:
+                    retune_start = time.perf_counter()
+                    # Only the capture thread touches the radio. Destroy the old
+                    # buffer before tuning so old-channel IQ is never relabelled.
+                    sdr.rx_destroy_buffer()
+                    epoch += 1
+                    channel = channels[epoch % len(channels)]
+                    sdr.rx_lo = FREQUENCIES[channel]
+                    # Discard a fresh buffer for LO/filter settling, then start
+                    # the dwell clock. This gap is intentional, not a queue loss.
+                    discarded = len(sdr.rx())
+                    stats['received_samples'] += discarded
+                    stats['settling_discarded_samples'] += discarded
+                    now = time.perf_counter()
+                    stats['retune_seconds'] += now - retune_start
+                    stats['channel_switches'] = epoch
+                    stats['current_channel'] = channel
+                    stats['center_frequency_hz'] = FREQUENCIES[channel]
+                    stats['hop_history'].append({'elapsed_seconds': now - began, 'channel': channel})
+                    # Bound telemetry in an all-day scan.
+                    stats['hop_history'] = stats['hop_history'][-120:]
+                    next_hop = now + 10
                 read_start = time.perf_counter()
                 samples = sdr.rx().astype(np.complex64) / np.float32(2048)
                 received_at = time.perf_counter()
@@ -251,7 +287,7 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
                 start = stats['received_samples']
                 stats['received_samples'] += len(samples)
                 try:
-                    q.put_nowait((start, samples, received_at))
+                    q.put_nowait((start, samples, received_at, channel, epoch))
                     stats['queue_high_water'] = max(stats['queue_high_water'], q.qsize())
                 except queue.Full:
                     stats['host_dropped_samples'] += len(samples)
@@ -268,12 +304,18 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
         with (output / 'packets.jsonl').open('w') as packets:
             while time.perf_counter() - began < args.seconds and not stop.is_set():
                 try:
-                    start, samples, received_at = q.get(timeout=1)
+                    start, samples, received_at, channel, epoch = q.get(timeout=1)
                 except queue.Empty:
                     continue
                 t = time.perf_counter()
                 stats['max_queue_age_seconds'] = max(stats['max_queue_age_seconds'], t - received_at)
+                if epoch != decoded_epoch:
+                    prior_crc_fail += decoder.crc_fail
+                    decoder = decoder_factory(channel)
+                    decoded_epoch = epoch
                 decoded = decoder.feed(samples, start)
+                stats['channel_samples'][str(channel)] += len(samples)
+                stats['channel_packets'][str(channel)] += len(decoded)
                 elapsed = time.perf_counter() - t
                 stats['decode_seconds'] += elapsed
                 stats['decode_max_seconds'] = max(stats['decode_max_seconds'], elapsed)
@@ -294,7 +336,7 @@ def main(argv=None, on_packet=None, on_health=None, stop_event=None):
         stats['capture_thread_stopped'] = not thread.is_alive()
         stats['queued_blocks_at_stop'] = q.qsize()
         stats['wall_seconds'] = time.perf_counter() - began
-        stats['crc_failed_candidates'] = decoder.crc_fail
+        stats['crc_failed_candidates'] = prior_crc_fail + decoder.crc_fail
         stats['block_duration_seconds'] = args.buffer / actual_rate
         stats['mean_decode_seconds'] = stats['decode_seconds'] / max(1, stats['processed_blocks'])
         stats['stream_test_passed'] = (not stats['read_errors'] and stats['processed_blocks'] > 1
